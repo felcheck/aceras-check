@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from "react-leaflet";
 import L from "leaflet";
 import { InstaQLEntity } from "@instantdb/react";
 import { AppSchema } from "@/instant.schema";
 import { useAutoGeolocation } from "@/hooks/useAutoGeolocation";
+import { reverseGeocode } from "@/lib/nominatim";
+import { SelectedLocation } from "@/types/location";
 
 // Fix for default marker icons in React Leaflet
 import "leaflet/dist/leaflet.css";
@@ -59,12 +61,15 @@ const TILE_THEMES = {
 
 interface MapViewProps {
   reports: Report[];
-  selectedLocation: { lat: number; lng: number } | null;
-  onLocationSelect: (location: { lat: number; lng: number }) => void;
+  selectedLocation: SelectedLocation | null;
+  onLocationSelect: (location: SelectedLocation) => void;
 }
 
 // Panama City center coordinates (Bella Vista area)
 const PANAMA_CENTER: [number, number] = [8.983333, -79.516670];
+
+const formatCoordinates = (lat: number, lng: number) =>
+  `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 
 // Auto-geolocation handler - flies to user location on load
 function AutoGeolocationHandler({
@@ -139,13 +144,13 @@ function SelectionPin({
 
 // Map click handler component
 function MapClickHandler({
-  onLocationSelect,
+  onMapClick,
 }: {
-  onLocationSelect: (location: { lat: number; lng: number }) => void;
+  onMapClick: (location: { lat: number; lng: number }) => void;
 }) {
   useMapEvents({
     click: (e) => {
-      onLocationSelect({ lat: e.latlng.lat, lng: e.latlng.lng });
+      onMapClick({ lat: e.latlng.lat, lng: e.latlng.lng });
     },
   });
   return null;
@@ -353,9 +358,105 @@ export default function MapView({
   selectedLocation,
   onLocationSelect,
 }: MapViewProps) {
-  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [isDark, setIsDark] = useState(false);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const latestSelectionRef = useRef<SelectedLocation | null>(selectedLocation);
+  const [reportAddressCache, setReportAddressCache] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    latestSelectionRef.current = selectedLocation;
+  }, [selectedLocation]);
+
+  const commitSelection = useCallback(
+    (payload: SelectedLocation) => {
+      latestSelectionRef.current = payload;
+      onLocationSelect(payload);
+    },
+    [onLocationSelect]
+  );
+
+  const handleManualLocation = useCallback(
+    (coords: { lat: number; lng: number }) => {
+      const baseSelection: SelectedLocation = {
+        lat: coords.lat,
+        lng: coords.lng,
+        addressLabel: null,
+        roadName: null,
+        isAddressLoading: true,
+        source: "map",
+      };
+      commitSelection(baseSelection);
+
+      (async () => {
+        try {
+          const result = await reverseGeocode(coords.lat, coords.lng);
+          const latest = latestSelectionRef.current;
+          if (
+            !latest ||
+            latest.lat !== coords.lat ||
+            latest.lng !== coords.lng
+          ) {
+            return;
+          }
+
+          if (result) {
+            commitSelection({
+              lat: coords.lat,
+              lng: coords.lng,
+              addressLabel: result.addressLabel,
+              roadName: result.roadName ?? result.addressLabel,
+              isAddressLoading: false,
+              source: "map",
+            });
+          } else {
+            commitSelection({
+              lat: coords.lat,
+              lng: coords.lng,
+              addressLabel: null,
+              roadName: null,
+              isAddressLoading: false,
+              source: "map",
+            });
+          }
+        } catch (error) {
+          console.warn("Reverse geocode error", error);
+          const latest = latestSelectionRef.current;
+          if (
+            !latest ||
+            latest.lat !== coords.lat ||
+            latest.lng !== coords.lng
+          ) {
+            return;
+          }
+          commitSelection({
+            lat: coords.lat,
+            lng: coords.lng,
+            addressLabel: null,
+            roadName: null,
+            isAddressLoading: false,
+            source: "map",
+          });
+        }
+      })();
+    },
+    [commitSelection]
+  );
+
+  const fetchReportAddress = useCallback(
+    async (report: Report) => {
+      if (report.roadName || reportAddressCache[report.id]) {
+        return;
+      }
+      const result = await reverseGeocode(report.lat, report.lng);
+      if (result?.addressLabel) {
+        setReportAddressCache((prev) => ({
+          ...prev,
+          [report.id]: result.addressLabel,
+        }));
+      }
+    },
+    [reportAddressCache]
+  );
 
   // Auto-geolocation hook - single source of truth for user location
   const { location: autoLocation, permissionStatus } = useAutoGeolocation();
@@ -392,7 +493,7 @@ export default function MapView({
   );
 
   return (
-    <div className="h-full w-full">
+    <div className="relative h-full w-full">
       <MapContainer
         center={PANAMA_CENTER}
         zoom={14}
@@ -405,10 +506,10 @@ export default function MapView({
         <TileLayer attribution={tileConfig.attribution} url={tileConfig.url} />
 
         <AutoGeolocationHandler autoLocation={autoLocation} />
-        <MapClickHandler onLocationSelect={onLocationSelect} />
+        <MapClickHandler onMapClick={handleManualLocation} />
         <MapControls
           isDark={isDark}
-          hasBottomSheet={!!selectedLocation}
+          hasBottomSheet={Boolean(selectedLocation)}
           userLocation={userLocation}
           onLocationFound={setUserLocation}
         />
@@ -421,42 +522,46 @@ export default function MapView({
         )}
 
         {/* Render existing reports as markers */}
-        {reports.map((report) => (
-          <Marker
-            key={report.id}
-            position={[report.lat, report.lng]}
-            eventHandlers={{
-              click: () => setSelectedReport(report),
-            }}
-          >
-            <Popup>
-              <div className="p-2">
-                <h3 className="font-semibold text-sm mb-1">
-                  {report.category.replace(/_/g, " ").toUpperCase()}
-                </h3>
-                <p className="text-xs text-gray-600 mb-2">
-                  {report.description}
-                </p>
-                {report.roadName && (
-                  <p className="text-xs text-gray-500">
-                    <strong>Road:</strong> {report.roadName}
+        {reports.map((report) => {
+          const cachedAddress = reportAddressCache[report.id];
+          const displayAddress =
+            report.roadName || cachedAddress || formatCoordinates(report.lat, report.lng);
+
+          return (
+            <Marker
+              key={report.id}
+              position={[report.lat, report.lng]}
+              eventHandlers={{
+                click: () => fetchReportAddress(report),
+              }}
+            >
+              <Popup>
+                <div className="p-2">
+                  <h3 className="font-semibold text-sm mb-1">
+                    {report.category.replace(/_/g, " ").toUpperCase()}
+                  </h3>
+                  <p className="text-xs text-gray-600 mb-2">
+                    {report.description}
                   </p>
-                )}
-                <div className="mt-2 flex gap-2 text-xs">
-                  {report.conditionRating && (
-                    <span>Condition: {report.conditionRating}/5</span>
+                  {displayAddress && (
+                    <p className="text-xs text-gray-500 mb-2">{displayAddress}</p>
                   )}
-                  {report.safetyRating && (
-                    <span>Safety: {report.safetyRating}/5</span>
-                  )}
+                  <div className="mt-2 flex gap-2 text-xs">
+                    {report.conditionRating && (
+                      <span>Condición: {report.conditionRating}/5</span>
+                    )}
+                    {report.safetyRating && (
+                      <span>Seguridad: {report.safetyRating}/5</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">
+                    {new Date(report.createdAt).toLocaleDateString()}
+                  </p>
                 </div>
-                <p className="text-xs text-gray-400 mt-2">
-                  {new Date(report.createdAt).toLocaleDateString()}
-                </p>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+              </Popup>
+            </Marker>
+          );
+        })}
       </MapContainer>
     </div>
   );

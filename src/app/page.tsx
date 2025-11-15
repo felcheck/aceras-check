@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { db } from "@/lib/db";
 import AddReportForm from "@/components/AddReportForm";
 import Header from "@/components/Header";
+import { SelectedLocation } from "@/types/location";
 
 // Dynamic import for Map component to avoid SSR issues with Leaflet
 const MapView = dynamic(() => import("@/components/MapView"), {
@@ -19,11 +20,11 @@ const MapView = dynamic(() => import("@/components/MapView"), {
 const room = db.room("main");
 
 function App() {
-  const [selectedLocation, setSelectedLocation] = useState<{
-    lat: number;
-    lng: number;
-  } | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<SelectedLocation | null>(null);
   const [showReportForm, setShowReportForm] = useState(false);
+  const handleLocationSelect = (location: SelectedLocation) => {
+    setSelectedLocation(location);
+  };
 
   const { peers } = db.rooms.usePresence(room);
   const numUsers = 1 + Object.keys(peers).length;
@@ -63,7 +64,7 @@ function App() {
         <MapView
           reports={data?.reports || []}
           selectedLocation={selectedLocation}
-          onLocationSelect={setSelectedLocation}
+          onLocationSelect={handleLocationSelect}
         />
       </div>
 
@@ -80,7 +81,13 @@ function App() {
             <div className="px-6 pb-6 pt-2">
               {/* Location coordinates */}
               <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                {selectedLocation.lat.toFixed(6)}, {selectedLocation.lng.toFixed(6)}
+                {selectedLocation.isAddressLoading
+                  ? "Cargando dirección..."
+                  : selectedLocation.addressLabel ||
+                    `${selectedLocation.lat.toFixed(6)}, ${selectedLocation.lng.toFixed(6)}`}
+                <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  {selectedLocation.lat.toFixed(6)}, {selectedLocation.lng.toFixed(6)}
+                </div>
               </div>
 
               {/* Action buttons */}

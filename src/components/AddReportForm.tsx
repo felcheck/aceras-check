@@ -3,9 +3,11 @@
 import React, { useState } from "react";
 import { db } from "@/lib/db";
 import { id } from "@instantdb/react";
+import { calculateSeguridadScore } from "@/lib/scoring";
+import { SelectedLocation } from "@/types/location";
 
 interface AddReportFormProps {
-  location: { lat: number; lng: number };
+  location: SelectedLocation;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -25,6 +27,14 @@ const REPORT_CATEGORIES = [
   { value: "positive_feedback", label: "Positive Feedback" },
 ];
 
+const OBSTRUCTION_OPTIONS = [
+  { value: "huecos", label: "Huecos/baches (holes/potholes)" },
+  { value: "interrupciones", label: "Interrupciones (interruptions)" },
+  { value: "carros_mal_estacionados", label: "Carros mal estacionados (illegally parked cars)" },
+  { value: "construccion", label: "Construcción (construction)" },
+  { value: "vendedores", label: "Vendedores (vendors)" },
+];
+
 export default function AddReportForm({
   location,
   onClose,
@@ -40,6 +50,12 @@ export default function AddReportForm({
   const [severity, setSeverity] = useState<number>(3);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // SEGURIDAD fields
+  const [hasSidewalk, setHasSidewalk] = useState<boolean | null>(null);
+  const [hasLighting, setHasLighting] = useState<boolean | null>(null);
+  const [comfortSpaceRating, setComfortSpaceRating] = useState<number | null>(null);
+  const [obstructions, setObstructions] = useState<string[]>([]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -52,6 +68,16 @@ export default function AddReportForm({
 
     try {
       const reportId = id();
+
+      // Calculate SEGURIDAD score
+      const seguridadScore = calculateSeguridadScore({
+        hasSidewalk,
+        widthRating,
+        obstructions,
+        comfortSpaceRating,
+        hasLighting,
+        lightingRating,
+      });
 
       await db.transact([
         db.tx.reports[reportId].update({
@@ -69,9 +95,15 @@ export default function AddReportForm({
           safetyRating: safetyRating || 0,
           lightingRating: lightingRating || 0,
           accessibilityRating: accessibilityRating || 0,
+          // SEGURIDAD fields
+          hasSidewalk: hasSidewalk,
+          hasLighting: hasLighting,
+          comfortSpaceRating: comfortSpaceRating,
+          obstructions: obstructions,
+          seguridadScore: seguridadScore,
           // Optional fields with defaults
           roadId: "",
-          roadName: "",
+          roadName: location.roadName || location.addressLabel || "",
           distanceFromRoad: 0,
           updatedAt: Date.now(),
         }),
@@ -85,6 +117,96 @@ export default function AddReportForm({
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const SectionHeading = ({ children }: { children: React.ReactNode }) => (
+    <h3 className="text-base font-bold text-gray-800 mb-3 pb-2 border-b-2 border-blue-500">
+      {children}
+    </h3>
+  );
+
+  const BooleanToggle = ({
+    value,
+    onChange,
+    label,
+  }: {
+    value: boolean | null;
+    onChange: (val: boolean) => void;
+    label: string;
+  }) => (
+    <div className="mb-4">
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        {label}
+      </label>
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={() => onChange(true)}
+          className={`px-4 py-2 rounded-md border-2 transition-colors ${
+            value === true
+              ? "bg-green-500 text-white border-green-600"
+              : "bg-white text-gray-700 border-gray-300 hover:border-green-400"
+          }`}
+        >
+          Sí
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(false)}
+          className={`px-4 py-2 rounded-md border-2 transition-colors ${
+            value === false
+              ? "bg-red-500 text-white border-red-600"
+              : "bg-white text-gray-700 border-gray-300 hover:border-red-400"
+          }`}
+        >
+          No
+        </button>
+      </div>
+    </div>
+  );
+
+  const CheckboxGroup = ({
+    value,
+    onChange,
+    label,
+    options,
+  }: {
+    value: string[];
+    onChange: (val: string[]) => void;
+    label: string;
+    options: { value: string; label: string }[];
+  }) => {
+    const handleToggle = (optionValue: string) => {
+      if (value.includes(optionValue)) {
+        onChange(value.filter((v) => v !== optionValue));
+      } else {
+        onChange([...value, optionValue]);
+      }
+    };
+
+    return (
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          {label}
+        </label>
+        <div className="space-y-2">
+          {options.map((option) => (
+            <label
+              key={option.value}
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                checked={value.includes(option.value)}
+                onChange={() => handleToggle(option.value)}
+                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">{option.label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   const StarRating = ({
@@ -140,107 +262,139 @@ export default function AddReportForm({
 
         <form onSubmit={handleSubmit} className="p-6">
           {/* Location Display */}
-          <div className="mb-4 p-3 bg-gray-50 rounded text-sm text-gray-600">
-            📍 Location: {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
+          <div className="mb-6 p-3 bg-gray-50 rounded text-sm text-gray-600">
+            <p className="font-semibold text-gray-800">
+              📍{" "}
+              {location.isAddressLoading
+                ? "Cargando dirección..."
+                : location.addressLabel || "Ubicación seleccionada"}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
+            </p>
           </div>
 
-          {/* Category */}
-          <div className="mb-4">
-            <label
-              htmlFor="category"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Issue Category *
-            </label>
-            <select
-              id="category"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            >
-              <option value="">Select a category...</option>
-              {REPORT_CATEGORIES.map((cat) => (
-                <option key={cat.value} value={cat.value}>
-                  {cat.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Description */}
-          <div className="mb-4">
-            <label
-              htmlFor="description"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Description *
-            </label>
-            <textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Describe the issue in detail..."
-              required
-            />
-          </div>
-
-          {/* Severity */}
+          {/* SEGURIDAD Section */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Severity: {severity}/5
-            </label>
-            <input
-              type="range"
-              min="1"
-              max="5"
-              value={severity}
-              onChange={(e) => setSeverity(parseInt(e.target.value))}
-              className="w-full"
-            />
-            <div className="flex justify-between text-xs text-gray-500">
-              <span>Low</span>
-              <span>High</span>
-            </div>
-          </div>
+            <SectionHeading>SEGURIDAD (Infraestructura)</SectionHeading>
 
-          {/* Ratings Section */}
-          <div className="border-t pt-4 mb-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">
-              Optional Ratings
-            </h3>
+            <BooleanToggle
+              label="1. ¿Existe la acera?"
+              value={hasSidewalk}
+              onChange={setHasSidewalk}
+            />
 
             <StarRating
-              label="Sidewalk Condition"
+              label="2. ¿Es lo suficientemente amplia?"
+              value={widthRating}
+              onChange={setWidthRating}
+            />
+
+            <CheckboxGroup
+              label="3. ¿Hay obstáculos?"
+              value={obstructions}
+              onChange={setObstructions}
+              options={OBSTRUCTION_OPTIONS}
+            />
+
+            <StarRating
+              label="4. ¿Es de buen tamaño relativo a la carretera?"
+              value={comfortSpaceRating}
+              onChange={setComfortSpaceRating}
+            />
+
+            <BooleanToggle
+              label="5. ¿Hay luminaria?"
+              value={hasLighting}
+              onChange={setHasLighting}
+            />
+
+            {hasLighting === true && (
+              <div className="ml-4 pl-4 border-l-2 border-gray-300">
+                <StarRating
+                  label="¿Qué tan buena es la iluminación?"
+                  value={lightingRating}
+                  onChange={setLightingRating}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Other Details Section */}
+          <div className="mb-6 border-t pt-6">
+            <SectionHeading>Otros Detalles</SectionHeading>
+
+            {/* Category */}
+            <div className="mb-4">
+              <label
+                htmlFor="category"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Categoría del problema
+              </label>
+              <select
+                id="category"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Selecciona una categoría...</option>
+                {REPORT_CATEGORIES.map((cat) => (
+                  <option key={cat.value} value={cat.value}>
+                    {cat.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <StarRating
+              label="Condición general"
               value={conditionRating}
               onChange={setConditionRating}
             />
 
             <StarRating
-              label="Sidewalk Width"
-              value={widthRating}
-              onChange={setWidthRating}
-            />
-
-            <StarRating
-              label="Safety"
-              value={safetyRating}
-              onChange={setSafetyRating}
-            />
-
-            <StarRating
-              label="Lighting"
-              value={lightingRating}
-              onChange={setLightingRating}
-            />
-
-            <StarRating
-              label="Accessibility (Wheelchair)"
+              label="Accesibilidad (silla de ruedas)"
               value={accessibilityRating}
               onChange={setAccessibilityRating}
             />
+
+            {/* Description */}
+            <div className="mb-4">
+              <label
+                htmlFor="description"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Notas adicionales
+              </label>
+              <textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Describe el problema en detalle..."
+              />
+            </div>
+
+            {/* Severity */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Severidad: {severity}/5
+              </label>
+              <input
+                type="range"
+                min="1"
+                max="5"
+                value={severity}
+                onChange={(e) => setSeverity(parseInt(e.target.value))}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>Baja</span>
+                <span>Alta</span>
+              </div>
+            </div>
           </div>
 
           {/* Action Buttons */}
@@ -251,14 +405,14 @@ export default function AddReportForm({
               className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
               disabled={isSubmitting}
             >
-              Cancel
+              Cancelar
             </button>
             <button
               type="submit"
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
               disabled={isSubmitting}
             >
-              {isSubmitting ? "Submitting..." : "Submit Report"}
+              {isSubmitting ? "Enviando..." : "Enviar Reporte"}
             </button>
           </div>
         </form>
