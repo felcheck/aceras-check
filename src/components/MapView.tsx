@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from "react-leaflet";
 import L from "leaflet";
 import { InstaQLEntity } from "@instantdb/react";
@@ -28,6 +28,23 @@ type Report = InstaQLEntity<
   "reports",
   { author: {}; neighborhood: {}; photos: {} }
 >;
+
+const TILE_THEMES = {
+  voyager: {
+    id: "voyager",
+    name: "Carto Voyager",
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+  },
+  darkMatter: {
+    id: "darkMatter",
+    name: "Carto Dark",
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+  },
+} as const;
 
 interface MapViewProps {
   reports: Report[];
@@ -128,6 +145,9 @@ function GeolocationButton() {
 
 export default function MapView({ reports, onLocationSelect }: MapViewProps) {
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  const [theme, setTheme] = useState<keyof typeof TILE_THEMES>("voyager");
+
+  const tileConfig = useMemo(() => TILE_THEMES[theme], [theme]);
 
   return (
     <div className="h-full w-full">
@@ -137,13 +157,27 @@ export default function MapView({ reports, onLocationSelect }: MapViewProps) {
         className="h-full w-full"
         scrollWheelZoom={true}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        <TileLayer attribution={tileConfig.attribution} url={tileConfig.url} />
 
         <MapClickHandler onLocationSelect={onLocationSelect} />
         <GeolocationButton />
+
+        <div className="leaflet-top leaflet-left" style={{ marginTop: "80px", marginLeft: "10px" }}>
+          <div className="leaflet-control leaflet-bar bg-white rounded">
+            {Object.values(TILE_THEMES).map((tile) => (
+              <button
+                key={tile.id}
+                type="button"
+                className={`px-3 py-1 text-xs border-b last:border-b-0 ${
+                  theme === tile.id ? "bg-blue-600 text-white" : "text-gray-700"
+                }`}
+                onClick={() => setTheme(tile.id)}
+              >
+                {tile.name}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Render existing reports as markers */}
         {reports.map((report) => (
