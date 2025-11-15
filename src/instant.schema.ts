@@ -34,6 +34,15 @@ const _schema = i.schema({
       lightingRating: i.number().optional(),
       accessibilityRating: i.number().optional(),
 
+      // SEGURIDAD (Safety) fields
+      hasSidewalk: i.boolean().optional(),
+      hasLighting: i.boolean().optional(),
+      comfortSpaceRating: i.number().optional(), // 1-5: buffer from traffic
+      obstructions: i.json().optional(), // Array of obstruction types: huecos, interrupciones, carros_mal_estacionados, etc.
+
+      // Computed walkability scores
+      seguridadScore: i.number().optional(), // 0-5 points (SEGURIDAD bucket)
+
       // Description and details
       description: i.string(),
       severity: i.number().optional(), // 1-5
