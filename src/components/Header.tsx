@@ -40,10 +40,10 @@ export default function Header({ numUsers }: HeaderProps) {
         {/* Title section */}
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Aceras Check
+            ¡Chequea tu acera!
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-300">
-            Panama City Walkability Reporter
+            Tus reportes permitirán visibilizar obstáculos y priorizar mejoras a la caminabilidad de tu cuidad.
           </p>
         </div>
 
