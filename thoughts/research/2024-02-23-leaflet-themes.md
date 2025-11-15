@@ -20,6 +20,11 @@ Goal: identify alternative basemap styles we can plug into `MapView`'s `<TileLay
 | **Mapbox Streets** | Polished vector style (needs conversion via `react-leaflet` + `L.TileLayer`) | `https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=KEY` | Requires Mapbox token |
 | **Esri World Imagery** | Satellite imagery for context on actual sidewalks | `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}` | Free with attribution |
 | **Jawg Light** | Modern light basemap with subtle colors | `https://{s}.tile.jawg.io/jawg-light/{z}/{x}/{y}.png?access-token=KEY` | Requires Jawg access token |
+| **MapTiler Basic/Hybrid** | Crisp fonts, high legibility; multiple palettes | `https://api.maptiler.com/maps/basic/{z}/{x}/{y}.png?key=KEY` | Free tier (credit card after limits) |
+| **Stadia Maps Alidade Smooth** | Highly legible Montserrat fonts; toned-down colors | `https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}.png?api_key=KEY` | Requires free API key (non-commercial tier) |
+| **HERE Explore** | Corporate-grade fonts/icons, optimized for navigation | `https://{1-4}.${s}.maps.ls.hereapi.com/maptile/2.1/maptile/newest/explore.day/{z}/{x}/{y}/256/png8?apiKey=KEY` | Requires HERE API key |
+| **TomTom Basic** | Strong contrast, readable fonts; shows traffic hierarchy clearly | `https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key=KEY` | Requires TomTom key |
+| **OpenMapTiles Clear** | Vector tiles with clear typefaces; self-host or MapTiler Cloud | `https://maps.tilehosting.com/styles/basic/{z}/{x}/{y}.png?key=KEY` | Requires MapTiler key |
 
 ## Recommendation
 - Prototype with **Carto Voyager** (clean, legible, no key) and **Carto Dark Matter** (night mode) to gauge readability over Panama City.
