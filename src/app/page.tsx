@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import dynamic from "next/dynamic";
 import { db } from "@/lib/db";
 import AddReportForm from "@/components/AddReportForm";
+import Header from "@/components/Header";
 
 // Dynamic import for Map component to avoid SSR issues with Leaflet
 const MapView = dynamic(() => import("@/components/MapView"), {
@@ -55,35 +56,50 @@ function App() {
   return (
     <div className="h-screen w-full flex flex-col">
       {/* Header */}
-      <header className="bg-white shadow-sm z-10 px-4 py-3 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Aceras Check</h1>
-          <p className="text-sm text-gray-600">
-            Panama City Walkability Reporter
-          </p>
-        </div>
-        <div className="text-sm text-gray-500">
-          {numUsers} user{numUsers > 1 ? "s" : ""} online
-        </div>
-      </header>
+      <Header numUsers={numUsers} />
 
       {/* Main Content */}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative bg-gray-50 dark:bg-gray-900">
         <MapView
           reports={data?.reports || []}
+          selectedLocation={selectedLocation}
           onLocationSelect={setSelectedLocation}
         />
       </div>
 
-      {/* Report Button */}
+      {/* Google Maps-style Bottom Sheet */}
       {selectedLocation && !showReportForm && (
-        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[500]">
-          <button
-            onClick={() => setShowReportForm(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-full shadow-lg font-semibold"
-          >
-            Report Issue at this Location
-          </button>
+        <div className="absolute bottom-0 left-0 right-0 z-[500] animate-slide-up">
+          <div className="bg-white dark:bg-gray-800 rounded-t-2xl shadow-2xl mx-auto max-w-2xl">
+            {/* Handle bar for mobile */}
+            <div className="flex justify-center pt-3 pb-2">
+              <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
+            </div>
+
+            {/* Content */}
+            <div className="px-6 pb-6 pt-2">
+              {/* Location coordinates */}
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                {selectedLocation.lat.toFixed(6)}, {selectedLocation.lng.toFixed(6)}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowReportForm(true)}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3.5 rounded-lg font-semibold shadow-md transition-colors"
+                >
+                  Reportar Problema Aquí
+                </button>
+                <button
+                  onClick={() => setSelectedLocation(null)}
+                  className="px-4 py-3.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
