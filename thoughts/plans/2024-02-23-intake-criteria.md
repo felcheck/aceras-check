@@ -66,6 +66,32 @@ Use the `(current/max)` labels to normalize how much each bucket contributes to 
 - Ratings should reuse the existing star slider component where possible to reduce UI debt.
 - Consider storing aggregated scores (e.g., `utilidadScore`) for easier filtering later, computed from selected amenities.
 
+## Walkability Input – Drawer Interaction Concepts
+When the user taps “Reportar problema aquí” in the map drawer, the sheet should transition from the bottom anchor to the top (roughly 90% height on mobile, centered modal on desktop) so the four scoring buckets feel like a full-screen form. Below are three responsive design alternatives that still honor UTILIDAD / SEGURIDAD / COMODIDAD / INTERESANTE scoring:
+
+1. **Stacked Accordion Buckets**
+   - **Structure**: Once the button is tapped, the drawer animates upward and expands. Each bucket becomes an accordion card with an icon + score badge. Only one card is open at a time. Tapping the header scrolls the open section into view.
+   - **Scoring UI**: Inside each card, include the relevant toggles/sliders (e.g., UTILIDAD amenity toggles, SEGURIDAD checklist). A tiny “Pts” chip beside the header updates live (e.g., `SEGURIDAD · 3.5/5`).
+   - **Responsiveness**:  
+     - *Mobile*: Full-height sheet with sticky progress bar at the top showing total walkability points. Accordions vertically stacked; headers occupy 56px each for easy thumb taps.  
+     - *Desktop*: Sheet docks to the top-center with a two-column layout for the open accordion’s content while the closed cards remain on the left. Clicking another card slides the form horizontally rather than scrolling the entire page.
+
+2. **Stepper with Bucket Tabs**
+   - **Structure**: Drawer transitions to a top-aligned modal and transforms into a four-step wizard. Horizontal pill tabs (UTILIDAD, SEGURIDAD, etc.) appear beneath the header. Users advance with “Siguiente” / “Volver” and see a completion indicator (e.g., “Paso 2 de 4”).
+   - **Scoring UI**: Each step focuses on one bucket with concise controls; the footer shows the bucket’s subtotal plus the running total. Completed tabs get a check mark and display their earned points.
+   - **Responsiveness**:  
+     - *Mobile*: Tabs become a swipeable segment at the top; we keep only one bucket per view with large next/back buttons spanning the width.  
+     - *Desktop*: Tabs stretch across the modal header, allowing direct navigation by clicking any bucket. Form fields can live in a two-column grid since there’s more width.
+
+3. **Dual-Pane Scoreboard**
+   - **Structure**: Pressing the button opens a top-docked drawer that splits into two panes: left pane is a vertical score summary (four colored bars, each showing points earned), right pane is a scrollable form grouped by bucket. Clicking a score bar scrolls the right pane to the corresponding question group.
+   - **Scoring UI**: As the user toggles inputs, the left scoreboard animates the point gain (e.g., UTILIDAD bar fills toward 1.0). Hover tooltips on desktop explain how many points remain.
+   - **Responsiveness**:  
+     - *Mobile*: Panes stack — scoreboard is sticky at the top while the form scrolls beneath it. Bars compress into cards with mini progress circles to keep vertical space manageable.  
+     - *Desktop*: Two panes sit side-by-side (30% / 70%). On large screens the scoreboard stays fixed while the form scrolls, giving a dashboard-like feel without modal hopping.
+
+All three options keep the “drawer moves to the top” requirement while ensuring consistency between touch and pointer devices. We can prototype the accordion first (closest to current sheet UI) and evaluate if the stepper or dual-pane layout better communicates walkability points once more questions are added.
+
 ## Next Steps
 1. Draft schema changes proposal referencing this plan (new InstantDB fields, enums, link updates).
 2. Update `AddReportForm` wireframes/copy to reflect Spanish prompts and grouping.

@@ -3,8 +3,8 @@
 import React, { useState } from "react";
 import dynamic from "next/dynamic";
 import { db } from "@/lib/db";
-import AddReportForm from "@/components/AddReportForm";
 import Header from "@/components/Header";
+import WalkabilityPrototypeModal from "@/components/WalkabilityPrototypeModal";
 import { SelectedLocation } from "@/types/location";
 
 // Dynamic import for Map component to avoid SSR issues with Leaflet
@@ -110,15 +110,12 @@ function App() {
         </div>
       )}
 
-      {/* Add Report Form Modal */}
+      {/* Walkability prototype modal */}
       {showReportForm && selectedLocation && (
-        <AddReportForm
+        <WalkabilityPrototypeModal
           location={selectedLocation}
           onClose={() => {
             setShowReportForm(false);
-            setSelectedLocation(null);
-          }}
-          onSuccess={() => {
             setSelectedLocation(null);
           }}
         />
