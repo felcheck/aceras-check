@@ -731,8 +731,8 @@ export default function WalkabilityPrototypeModal({
     WALKABILITY_META.interesante.max;
 
   return (
-    <div className="fixed inset-0 z-[1100] bg-black/50 flex items-start justify-center p-2 md:p-6">
-      <div className="w-full max-w-4xl bg-white dark:bg-gray-900 rounded-t-3xl md:rounded-3xl shadow-2xl overflow-hidden animate-slide-up">
+    <div className="fixed inset-0 z-[1100] bg-black/50 flex items-start justify-center p-2 md:p-6 overflow-y-auto">
+      <div className="w-full max-w-4xl bg-white dark:bg-gray-900 rounded-t-3xl md:rounded-3xl shadow-2xl animate-slide-up flex flex-col max-h-[calc(100vh-1rem)] md:max-h-[calc(100vh-3rem)] overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
           <div>
             <p className="text-xs uppercase text-gray-500 tracking-wide">
@@ -798,7 +798,7 @@ export default function WalkabilityPrototypeModal({
           </div>
         </div>
 
-        <div className="max-h-[70vh] md:max-h-[75vh] overflow-hidden px-6 py-4">
+        <div className="flex-1 overflow-y-auto px-6 py-4">
           {variant === "accordion" && (
             <AccordionPrototype
               openBucket={openBucket}
