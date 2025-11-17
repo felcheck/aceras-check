@@ -36,7 +36,10 @@ export default function Header({ numUsers }: HeaderProps) {
 
   return (
     <div className="bg-gray-50 dark:bg-gray-900">
-      <header className="bg-white dark:bg-gray-800 shadow-md dark:shadow-xl rounded-b-lg px-6 py-4 flex items-center justify-between">
+      <header
+        className="bg-white dark:bg-gray-800 shadow-md dark:shadow-xl rounded-b-lg px-6 py-4 flex items-center justify-between"
+        style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}
+      >
         {/* Title section */}
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
