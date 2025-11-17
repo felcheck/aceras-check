@@ -34,3 +34,13 @@ Goal: identify alternative basemap styles we can plug into `MapView`'s `<TileLay
 1. Swap the `<TileLayer url>` to Carto Voyager in a dev branch and gather screenshots for stakeholders.
 2. Evaluate label density vs. report markers; adjust marker colors if needed.
 3. If we want a long-term dark mode, add UI toggle and store preference.
+
+## 2025-11-15 Readability Test Notes
+- Setup: Unable to bind local dev servers inside the sandbox (`listen EPERM` on ports 3000/3100/3200), so I pulled the actual Carto Voyager + Dark Matter tiles covering the Bella Vista focus area (lat 8.983333, lng -79.51667) at zoom levels 14 and 16 via `curl` and inspected them with Pillow.
+- Voyager findings:
+  - Mean luminance 238 (std dev 12) with 5th percentile already at 227, so almost the entire canvas is a bright pastel. Marker halo remains visible but the default Leaflet blue (`#2e85cb`) only achieves ~3.1:1 contrast against the dominant background color (`#d5e8eb`), which is below WCAG AA for non-large graphics.
+  - POI/road labels (dark gray) pop well, but the light beige land parcels reduce separation between low-severity markers; adding a darker outline or swapping to an amber marker icon would help.
+- Dark Matter findings:
+  - Mean luminance 19 (std dev 14) and a 95th percentile of 38 at z14, so it is genuinely dark with plenty of headroom for colored markers. Default marker contrast vs. background is ~5:1, so pins read clearly even before we invert the icon.
+  - Label density is lower, which helps focus on the reports, but white text on near-black asphalt may need a subtle halo to avoid blooming when zoomed out.
+- Both providers served identical imagery from the `a.basemaps.cartocdn.com` tile server without throttling, so once we can spin up real dev servers we should still capture qualitative screenshots for the team; meanwhile these numeric checks confirm Dark Matter is safer for accessibility, and Voyager needs marker color tweaks before shipping as the default.
