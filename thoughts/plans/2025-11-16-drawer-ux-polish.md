@@ -201,6 +201,7 @@ if (velocity > 600 || dragRatio > 0.25) {
 - Card appearance with shadow/border
 - Triangle icons (▶)
 - Icon position unclear
+- Unknown default open state
 
 **New Design** (Research-backed):
 
@@ -260,6 +261,24 @@ if (velocity > 600 || dragRatio > 0.25) {
 - 56px min height for mobile taps
 - Hover effect on header
 
+**Default State** (NEW REQUIREMENT):
+```tsx
+// All sections open on first drawer open
+const [openBuckets, setOpenBuckets] = useState<Record<BucketId, boolean>>({
+  seguridad: true,    // Open by default
+  utilidad: true,     // Open by default
+  comodidad: true,    // Open by default
+  interesante: true,  // Open by default
+});
+```
+
+**Rationale**:
+- Forms should show all fields immediately (don't hide content)
+- User shouldn't have to hunt for what to fill
+- Reduces interaction cost (no expand required)
+- Accordions still useful for collapsing after filling
+- Even fields with impossible null values should be visible (better UX)
+
 **Impact**: Medium effort, major UX improvement
 
 ---
@@ -314,6 +333,7 @@ const BUCKET_ORDER: BucketId[] = [
 - [ ] Update backdrop click (close completely)
 
 ### Phase 3: Accordion Redesign (1 hour)
+- [ ] Set all sections to open by default (`openBuckets` all `true`)
 - [ ] Replace card styling with border-bottom separators
 - [ ] Replace triangles with chevron icons
 - [ ] Position chevrons on the right
@@ -362,19 +382,31 @@ const BUCKET_ORDER: BucketId[] = [
 │ 📍 Calle 50, Panama City          │
 │                                     │
 ├─────────────────────────────────────┤
-│ 🛡️  SEGURIDAD         3.5/5.0  ▲  │ ← Outlined chevron, right side
+│ 🛡️  SEGURIDAD         0.0/5.0  ▲  │ ← All open by default
 │                                     │
-│ [Form fields visible...]           │ ← No card, just separator
+│ ¿Existe la acera? [Sí] [No]       │
+│ Ancho: ☆☆☆☆☆                      │
+│ [More form fields...]              │
 │                                     │
 ├─────────────────────────────────────┤
-│ 🎯  UTILIDAD          0.0/1.0  ▼  │ ← Collapsed (chevron down)
-├─────────────────────────────────────┤
-│ 🌳  COMODIDAD         0.0/2.0  ▼  │
-├─────────────────────────────────────┤
-│ ⭐  INTERESANTE       0.0/2.0  ▼  │
-├─────────────────────────────────────┤
+│ 🎯  UTILIDAD          0.0/1.0  ▲  │ ← All expanded on first open
 │                                     │
-│ [Chequear Acera Aquí]              │ ← Updated CTA text
+│ Parque cercano: [ ] Sí             │
+│ Supermercado: [ ] Sí               │
+│ [More amenities...]                │
+│                                     │
+├─────────────────────────────────────┤
+│ 🌳  COMODIDAD         0.0/2.0  ▲  │
+│                                     │
+│ Sombra: ☆☆☆☆☆                     │
+│ [More fields...]                   │
+│                                     │
+├─────────────────────────────────────┤
+│ ⭐  INTERESANTE       0.0/2.0  ▲  │
+│                                     │
+│ ¿Comercios? [Sí] [No]              │
+│ Vibras: ☆☆☆☆☆                     │
+│                                     │
 └─────────────────────────────────────┘
 ```
 
@@ -467,15 +499,19 @@ When `rotate-180` is applied, chevron points up (expanded state).
 **Expand Transition**:
 1. Click "Chequear Acera Aquí" → drawer expands
 2. Verify: Shows "Nuevo Chequeo de Acera" title
-3. Verify: SEGURIDAD accordion first, all collapsed
-4. Verify: "X" icon still visible in same position
+3. Verify: **ALL accordions open by default** (SEGURIDAD, UTILIDAD, COMODIDAD, INTERESANTE)
+4. Verify: All chevrons pointing up (▲)
+5. Verify: All form fields visible immediately
+6. Verify: "X" icon still visible in same position
 
 **Accordion Interaction**:
-1. Click SEGURIDAD header → expands with smooth animation
-2. Verify: Chevron rotates 180° (now points up)
-3. Click header again → collapses
-4. Verify: Chevron rotates back (points down)
-5. Open UTILIDAD → SEGURIDAD stays open (no auto-collapse)
+1. All sections already open → click SEGURIDAD header to collapse
+2. Verify: Collapses with smooth animation
+3. Verify: Chevron rotates 180° (now points down ▼)
+4. Click header again → expands
+5. Verify: Chevron rotates back (points up ▲)
+6. Collapse UTILIDAD → SEGURIDAD stays open (no auto-collapse)
+7. Verify: Can collapse/expand each section independently
 
 **Drag to Collapse**:
 1. From expanded state, drag down
@@ -521,6 +557,14 @@ When `rotate-180` is applied, chevron points up (expanded state).
 - Highest priority per intake criteria plan
 - Core safety mission
 - Highest point value (5/10 total walkability score)
+
+**Why all sections open by default?**
+- Forms shouldn't hide content from users
+- Reduces interaction cost (no hunting/clicking to find fields)
+- All fields should be immediately visible and scannable
+- User can still collapse sections after reviewing/filling
+- Even fields with non-nullable inputs benefit from immediate visibility
+- Follows progressive disclosure principle: show everything, let user hide what's done
 
 ---
 
