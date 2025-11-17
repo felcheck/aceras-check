@@ -784,26 +784,25 @@ export default function WalkabilityDrawer({
     setOpenBuckets(prev => ({ ...prev, [bucket]: !prev[bucket] }));
   };
 
-  // Lock body scroll when drawer is expanded (prevent page scroll on mobile)
+  // Lock body scroll whenever drawer is mounted (prevent page scroll on mobile during all interactions)
   useEffect(() => {
-    if (drawerState === 'expanded') {
-      // Save original overflow
-      const originalOverflow = document.body.style.overflow;
-      const originalPosition = document.body.style.position;
+    // Save original overflow
+    const originalOverflow = document.body.style.overflow;
+    const originalPosition = document.body.style.position;
+    const originalWidth = document.body.style.width;
 
-      // Lock scroll
-      document.body.style.overflow = 'hidden';
-      document.body.style.position = 'fixed';
-      document.body.style.width = '100%';
+    // Lock scroll - applies to ALL drawer states to prevent scroll during drag
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
 
-      // Cleanup: restore scroll on unmount or collapse
-      return () => {
-        document.body.style.overflow = originalOverflow;
-        document.body.style.position = originalPosition;
-        document.body.style.width = '';
-      };
-    }
-  }, [drawerState]);
+    // Cleanup: restore scroll on unmount
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.position = originalPosition;
+      document.body.style.width = originalWidth;
+    };
+  }, []); // Empty deps - lock for entire component lifetime
 
   const totalMax =
     WALKABILITY_META.utilidad.max +
@@ -927,7 +926,7 @@ export default function WalkabilityDrawer({
       {/* Bottom-anchored drawer - height animates, bottom stays at 0 */}
       <div className={`fixed z-[500] bottom-0 left-0 right-0 md:left-1/2 md:-translate-x-1/2 md:w-[768px]`}>
         <motion.div
-          style={{ height }}  // Height animates - bottom stays fixed!
+          style={{ height, touchAction: 'none' }}  // Height animates - bottom stays fixed! touchAction prevents browser scroll
           onPan={handlePan}
           onPanEnd={handlePanEnd}
           className={`bg-white dark:bg-gray-900 mx-auto shadow-2xl ${
