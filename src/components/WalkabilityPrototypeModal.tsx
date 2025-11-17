@@ -1,12 +1,15 @@
 "use client";
 
-import React, { useMemo, useState, useRef } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
+import { motion, useMotionValue, useTransform, PanInfo, animate } from "framer-motion";
 import { SelectedLocation } from "@/types/location";
 
 type BucketId = "utilidad" | "seguridad" | "comodidad" | "interesante";
 
 interface WalkabilityPrototypeModalProps {
   location: SelectedLocation;
+  isExpanded: boolean;
+  onExpand: () => void;
   onClose: () => void;
 }
 
@@ -88,30 +91,30 @@ interface WalkabilityState {
 const DEFAULT_STATE: WalkabilityState = {
   utilidad: {
     amenities: {
-      park: true,
+      park: false,
       market: false,
       clinic: false,
-      shops: true,
+      shops: false,
       work: false,
     },
   },
   seguridad: {
-    hasSidewalk: true,
-    widthRating: 4,
-    obstructions: ["cars"],
-    comfortSpaceRating: 3,
-    hasLighting: true,
-    lightingRating: 4,
+    hasSidewalk: null,
+    widthRating: 0,
+    obstructions: [],
+    comfortSpaceRating: 0,
+    hasLighting: null,
+    lightingRating: 0,
   },
   comodidad: {
-    shadeRating: 3,
-    contaminants: ["noise"],
-    contaminationSeverity: 2,
+    shadeRating: 0,
+    contaminants: [],
+    contaminationSeverity: 0,
   },
   interesante: {
-    hasCommerce: true,
-    commerceCount: 2,
-    vibeRating: 4,
+    hasCommerce: null,
+    commerceCount: 0,
+    vibeRating: 0,
   },
 };
 
@@ -518,48 +521,58 @@ function BucketContent({
 }
 
 function AccordionPrototype({
-  openBucket,
-  setOpenBucket,
+  openBuckets,
+  toggleBucket,
   state,
   scores,
   updateBucket,
 }: {
-  openBucket: BucketId;
-  setOpenBucket: (id: BucketId) => void;
+  openBuckets: Record<BucketId, boolean>;
+  toggleBucket: (id: BucketId) => void;
   state: WalkabilityState;
   scores: ReturnType<typeof useWalkabilityState>["scores"];
   updateBucket: ReturnType<typeof useWalkabilityState>["updateBucket"];
 }) {
   return (
-    <div className="divide-y divide-gray-200">
+    <div className="space-y-4">
       {(Object.keys(WALKABILITY_META) as BucketId[]).map((bucket) => {
         const meta = WALKABILITY_META[bucket];
-        const isOpen = bucket === openBucket;
+        const isOpen = openBuckets[bucket];
         const currentScore = (scores as Record<BucketId, number>)[bucket];
+        const isComplete = currentScore >= meta.max * 0.5; // Simple completion check
+
         return (
-          <div key={bucket}>
+          <div
+            key={bucket}
+            className={`border-2 rounded-lg transition-colors ${
+              isComplete ? "border-green-500" : "border-gray-300"
+            }`}
+          >
             <button
               type="button"
-              onClick={() => setOpenBucket(bucket)}
-              className="w-full flex items-center justify-between py-4"
+              onClick={() => toggleBucket(bucket)}
+              className={`w-full px-4 py-3 flex items-center justify-between text-left font-semibold ${
+                isComplete && !isOpen ? "hover:bg-green-50" : ""
+              }`}
             >
-              <div>
-                <p className="text-sm font-semibold">{meta.title}</p>
-                <p className="text-xs text-gray-500">{meta.description}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold text-gray-700">
-                  {currentScore.toFixed(1)} / {meta.max}
+              <div className="flex items-center gap-2">
+                <span className="text-lg">
+                  {isOpen ? "▼" : "▶"}
                 </span>
-                <span
-                  className={`px-2 py-1 rounded-full text-xs text-white ${meta.color}`}
-                >
-                  {isOpen ? "Abierto" : "Abrir"}
-                </span>
+                <div>
+                  <p className="text-sm font-semibold">{meta.title}</p>
+                  <p className="text-xs text-gray-500 font-normal">{meta.description}</p>
+                </div>
+                {isComplete && (
+                  <span className="text-green-600 text-xl">✓</span>
+                )}
               </div>
+              <span className="text-sm font-semibold text-gray-700">
+                {currentScore.toFixed(1)} / {meta.max}
+              </span>
             </button>
             {isOpen && (
-              <div className="pb-6">
+              <div className="px-4 py-4 border-t-2 border-gray-200">
                 <BucketContent
                   bucket={bucket}
                   state={state}
@@ -715,14 +728,64 @@ function DualPanePrototype({
   );
 }
 
+type DrawerState = 'collapsed' | 'expanded';
+
 export default function WalkabilityPrototypeModal({
   location,
+  isExpanded,
+  onExpand,
   onClose,
 }: WalkabilityPrototypeModalProps) {
   const { state, scores, updateBucket } = useWalkabilityState();
-  const [variant, setVariant] = useState<"accordion" | "stepper" | "dual">("accordion");
-  const [openBucket, setOpenBucket] = useState<BucketId>("seguridad");
-  const [activeStep, setActiveStep] = useState(1);
+  const [openBuckets, setOpenBuckets] = useState<Record<BucketId, boolean>>({
+    utilidad: true,
+    seguridad: true,
+    comodidad: true,
+    interesante: true,
+  });
+
+  // Internal state for 3-snap-point system
+  const [drawerState, setDrawerState] = useState<DrawerState>('collapsed');
+
+  // Height-based animation (keeps bottom anchored)
+  const isDragging = useRef(false);
+  const height = useMotionValue(160); // Start at collapsed height
+
+  // Calculate target heights for each state (two-state system)
+  const getTargetHeight = (state: DrawerState): number => {
+    if (state === 'collapsed') return 160; // px
+    return window.innerHeight; // 100vh for expanded
+  };
+
+  // Sync with parent's isExpanded prop
+  useEffect(() => {
+    if (isExpanded) {
+      setDrawerState('expanded');
+    } else if (drawerState === 'expanded') {
+      // When parent closes, go to collapsed (skip half)
+      setDrawerState('collapsed');
+    }
+  }, [isExpanded]);
+
+  const toggleBucket = (bucket: BucketId) => {
+    setOpenBuckets(prev => ({ ...prev, [bucket]: !prev[bucket] }));
+  };
+
+  // Auto-close buckets when completed
+  useEffect(() => {
+    (Object.keys(WALKABILITY_META) as BucketId[]).forEach(bucket => {
+      const currentScore = (scores as Record<BucketId, number>)[bucket];
+      const maxScore = WALKABILITY_META[bucket].max;
+      const isComplete = currentScore >= maxScore * 0.5; // 50% threshold for completion
+
+      if (isComplete && openBuckets[bucket]) {
+        const timer = setTimeout(() => {
+          setOpenBuckets(prev => ({ ...prev, [bucket]: false }));
+        }, 300);
+        return () => clearTimeout(timer);
+      }
+    });
+  }, [scores, openBuckets]);
 
   const totalMax =
     WALKABILITY_META.utilidad.max +
@@ -730,9 +793,174 @@ export default function WalkabilityPrototypeModal({
     WALKABILITY_META.comodidad.max +
     WALKABILITY_META.interesante.max;
 
+  // Research-based spring physics (Google Maps feel)
+  const springConfig = {
+    type: "spring" as const,
+    stiffness: 350,  // More responsive (was 200)
+    damping: 35,     // Tuned for 0.8 damping ratio (was 30)
+    mass: 0.8,       // Lighter feel (was 1)
+    restDelta: 0.001, // Stricter settle threshold
+    restSpeed: 0.01   // Stop spring sooner
+  };
+
+  // Animate height when state changes
+  useEffect(() => {
+    if (!isDragging.current) {
+      const targetHeight = getTargetHeight(drawerState);
+      animate(height, targetHeight, springConfig);
+    }
+  }, [drawerState]);
+
+  // Handle pan (drag) - adjusts height in real-time
+  const handlePan = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    isDragging.current = true;
+
+    // Dragging up (negative delta.y) should INCREASE height
+    // Dragging down (positive delta.y) should DECREASE height
+    const currentHeight = height.get();
+    const newHeight = currentHeight - info.delta.y; // Subtract because up is negative
+
+    // Clamp between min and max with rubber banding effect
+    const minHeight = 160;
+    const maxHeight = window.innerHeight;
+
+    if (newHeight < minHeight) {
+      // Rubber band below minimum
+      const excess = minHeight - newHeight;
+      const damped = minHeight - excess * 0.3; // 30% resistance
+      height.set(damped);
+    } else if (newHeight > maxHeight) {
+      // Rubber band above maximum
+      const excess = newHeight - maxHeight;
+      const damped = maxHeight + excess * 0.3; // 30% resistance
+      height.set(damped);
+    } else {
+      height.set(newHeight);
+    }
+  };
+
+  // Handle pan end - binary snap (two-state system)
+  const handlePanEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    isDragging.current = false;
+
+    // Get current height and velocity
+    const currentHeight = height.get();
+    const velocity = -info.velocity.y; // Invert: up is positive velocity
+
+    // Two-state thresholds (simpler, more predictable)
+    const VELOCITY_THRESHOLD = 500;   // px/s - commit to state change
+    const DISTANCE_THRESHOLD = 0.25;  // 25% of screen height
+
+    const collapsedHeight = getTargetHeight('collapsed');
+    const expandedHeight = getTargetHeight('expanded');
+    const screenHeight = window.innerHeight;
+
+    // Calculate how far we've dragged from starting position
+    const draggedDistance = Math.abs(currentHeight - getTargetHeight(drawerState));
+    const dragRatio = draggedDistance / screenHeight;
+
+    // Determine target state based on velocity OR distance
+    let targetState: DrawerState;
+
+    if (Math.abs(velocity) > VELOCITY_THRESHOLD) {
+      // Strong fling - follow the direction
+      if (velocity > 0) {
+        // Fling up = expand
+        targetState = 'expanded';
+        if (drawerState !== 'expanded') onExpand();
+      } else {
+        // Fling down = collapse
+        targetState = 'collapsed';
+        if (drawerState !== 'collapsed') onClose();
+      }
+    } else if (dragRatio > DISTANCE_THRESHOLD) {
+      // Dragged far enough - toggle state
+      if (drawerState === 'collapsed') {
+        targetState = 'expanded';
+        onExpand();
+      } else {
+        targetState = 'collapsed';
+        onClose();
+      }
+    } else {
+      // Small movement - snap back to current state
+      targetState = drawerState;
+    }
+
+    setDrawerState(targetState);
+  };
+
+  // Single unified drawer - smoothly transitions between 2 states (collapsed ↔ expanded)
   return (
-    <div className="fixed inset-0 z-[1100] bg-black/50 flex items-start justify-center p-2 md:p-6 overflow-y-auto">
-      <div className="w-full max-w-4xl bg-white dark:bg-gray-900 rounded-t-3xl md:rounded-3xl shadow-2xl animate-slide-up flex flex-col max-h-[calc(100vh-1rem)] md:max-h-[calc(100vh-3rem)] overflow-hidden">
+    <>
+      {/* Backdrop - visible only when expanded */}
+      {drawerState === 'expanded' && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={springConfig}
+          className="fixed inset-0 z-[499] bg-black/50"
+          onClick={() => {
+            setDrawerState('collapsed');
+            onClose();
+          }}
+        />
+      )}
+
+      {/* Bottom-anchored drawer - height animates, bottom stays at 0 */}
+      <div className={`fixed z-[500] bottom-0 left-0 right-0 md:left-1/2 md:-translate-x-1/2 md:w-[768px]`}>
+        <motion.div
+          style={{ height }}  // Height animates - bottom stays fixed!
+          onPan={handlePan}
+          onPanEnd={handlePanEnd}
+          className={`bg-white dark:bg-gray-900 mx-auto shadow-2xl ${
+            drawerState === 'expanded'
+              ? 'rounded-t-3xl md:rounded-3xl overflow-hidden flex flex-col'
+              : 'rounded-t-2xl md:rounded-2xl overflow-hidden flex flex-col'
+          }`}
+        >
+            {/* Handle bar - visual indicator for drag */}
+            <div className="flex justify-center pt-3 pb-2 w-full cursor-grab active:cursor-grabbing select-none touch-none">
+              <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
+            </div>
+
+          {drawerState === 'collapsed' ? (
+            // Collapsed: Location + Buttons
+            <div className="px-6 pb-6 pt-2">
+              {/* Location coordinates */}
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                {location.isAddressLoading
+                  ? "Cargando dirección..."
+                  : location.addressLabel ||
+                    `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`}
+                <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setDrawerState('expanded');
+                    onExpand();
+                  }}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3.5 rounded-lg font-semibold shadow-md transition-colors"
+                >
+                  Reportar Problema Aquí
+                </button>
+                <button
+                  onClick={onClose}
+                  className="px-4 py-3.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            // Expanded: Full form
+            <>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
           <div>
             <p className="text-xs uppercase text-gray-500 tracking-wide">
@@ -760,71 +988,19 @@ export default function WalkabilityPrototypeModal({
           </button>
         </div>
 
-        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800">
-          <p className="text-sm font-semibold mb-2 text-gray-700">
-            Explora variantes del flujo
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${
-                variant === "accordion"
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "border-gray-300 text-gray-600"
-              }`}
-              onClick={() => setVariant("accordion")}
-            >
-              Acordeón
-            </button>
-            <button
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${
-                variant === "stepper"
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "border-gray-300 text-gray-600"
-              }`}
-              onClick={() => setVariant("stepper")}
-            >
-              Stepper
-            </button>
-            <button
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${
-                variant === "dual"
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "border-gray-300 text-gray-600"
-              }`}
-              onClick={() => setVariant("dual")}
-            >
-              Panel Dual
-            </button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          {variant === "accordion" && (
-            <AccordionPrototype
-              openBucket={openBucket}
-              setOpenBucket={setOpenBucket}
-              state={state}
-              scores={scores}
-              updateBucket={updateBucket}
-            />
+              <div className="flex-1 overflow-y-auto px-6 py-4">
+                <AccordionPrototype
+                  openBuckets={openBuckets}
+                  toggleBucket={toggleBucket}
+                  state={state}
+                  scores={scores}
+                  updateBucket={updateBucket}
+                />
+              </div>
+            </>
           )}
-          {variant === "stepper" && (
-            <StepperPrototype
-              activeStep={activeStep}
-              setActiveStep={setActiveStep}
-              state={state}
-              updateBucket={updateBucket}
-            />
-          )}
-          {variant === "dual" && (
-            <DualPanePrototype
-              state={state}
-              updateBucket={updateBucket}
-              scores={scores}
-            />
-          )}
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </>
   );
 }
