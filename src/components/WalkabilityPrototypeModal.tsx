@@ -533,53 +533,65 @@ function AccordionPrototype({
   scores: ReturnType<typeof useWalkabilityState>["scores"];
   updateBucket: ReturnType<typeof useWalkabilityState>["updateBucket"];
 }) {
+  // Define section order with SEGURIDAD first (per intake criteria priority)
+  const BUCKET_ORDER: BucketId[] = ['seguridad', 'utilidad', 'comodidad', 'interesante'];
+
   return (
-    <div className="space-y-4">
-      {(Object.keys(WALKABILITY_META) as BucketId[]).map((bucket) => {
+    <div className="divide-y divide-gray-200 dark:divide-gray-700">
+      {BUCKET_ORDER.map((bucket) => {
         const meta = WALKABILITY_META[bucket];
         const isOpen = openBuckets[bucket];
         const currentScore = (scores as Record<BucketId, number>)[bucket];
         const isComplete = currentScore >= meta.max * 0.5; // Simple completion check
 
         return (
-          <div
-            key={bucket}
-            className={`border-2 rounded-lg transition-colors ${
-              isComplete ? "border-green-500" : "border-gray-300"
-            }`}
-          >
+          <div key={bucket} className="border-b border-gray-200 dark:border-gray-700 last:border-b-0">
             <button
               type="button"
               onClick={() => toggleBucket(bucket)}
-              className={`w-full px-4 py-3 flex items-center justify-between text-left font-semibold ${
-                isComplete && !isOpen ? "hover:bg-green-50" : ""
-              }`}
+              className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
+              aria-expanded={isOpen}
             >
-              <div className="flex items-center gap-2">
-                <span className="text-lg">
-                  {isOpen ? "▼" : "▶"}
-                </span>
-                <div>
-                  <p className="text-sm font-semibold">{meta.title}</p>
-                  <p className="text-xs text-gray-500 font-normal">{meta.description}</p>
+              {/* Left: Icon + Label + Score */}
+              <div className="flex items-center gap-3">
+                <div className="text-left">
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                    {meta.title}
+                    {isComplete && (
+                      <span className="text-green-600 text-lg">✓</span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    {currentScore.toFixed(1)} / {meta.max}
+                  </p>
                 </div>
-                {isComplete && (
-                  <span className="text-green-600 text-xl">✓</span>
-                )}
               </div>
-              <span className="text-sm font-semibold text-gray-700">
-                {currentScore.toFixed(1)} / {meta.max}
-              </span>
+
+              {/* Right: Chevron with rotation */}
+              <svg
+                className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${
+                  isOpen ? 'rotate-180' : ''
+                }`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
             </button>
-            {isOpen && (
-              <div className="px-4 py-4 border-t-2 border-gray-200">
-                <BucketContent
-                  bucket={bucket}
-                  state={state}
-                  updateBucket={updateBucket}
-                />
-              </div>
-            )}
+
+            {/* Panel content */}
+            <div
+              hidden={!isOpen}
+              className="px-6 py-4 bg-gray-50 dark:bg-gray-900"
+            >
+              <BucketContent
+                bucket={bucket}
+                state={state}
+                updateBucket={updateBucket}
+              />
+            </div>
           </div>
         );
       })}
@@ -730,7 +742,8 @@ function DualPanePrototype({
 
 type DrawerState = 'collapsed' | 'expanded';
 
-export default function WalkabilityPrototypeModal({
+// Walkability Drawer Component (renamed from WalkabilityPrototypeModal)
+export default function WalkabilityDrawer({
   location,
   isExpanded,
   onExpand,
@@ -770,22 +783,6 @@ export default function WalkabilityPrototypeModal({
   const toggleBucket = (bucket: BucketId) => {
     setOpenBuckets(prev => ({ ...prev, [bucket]: !prev[bucket] }));
   };
-
-  // Auto-close buckets when completed
-  useEffect(() => {
-    (Object.keys(WALKABILITY_META) as BucketId[]).forEach(bucket => {
-      const currentScore = (scores as Record<BucketId, number>)[bucket];
-      const maxScore = WALKABILITY_META[bucket].max;
-      const isComplete = currentScore >= maxScore * 0.5; // 50% threshold for completion
-
-      if (isComplete && openBuckets[bucket]) {
-        const timer = setTimeout(() => {
-          setOpenBuckets(prev => ({ ...prev, [bucket]: false }));
-        }, 300);
-        return () => clearTimeout(timer);
-      }
-    });
-  }, [scores, openBuckets]);
 
   const totalMax =
     WALKABILITY_META.utilidad.max +
@@ -869,9 +866,9 @@ export default function WalkabilityPrototypeModal({
         targetState = 'expanded';
         if (drawerState !== 'expanded') onExpand();
       } else {
-        // Fling down = collapse
+        // Fling down = collapse (NOT close)
         targetState = 'collapsed';
-        if (drawerState !== 'collapsed') onClose();
+        // Don't call onClose() - just collapse
       }
     } else if (dragRatio > DISTANCE_THRESHOLD) {
       // Dragged far enough - toggle state
@@ -879,8 +876,9 @@ export default function WalkabilityPrototypeModal({
         targetState = 'expanded';
         onExpand();
       } else {
+        // Collapse (NOT close)
         targetState = 'collapsed';
-        onClose();
+        // Don't call onClose() - just collapse
       }
     } else {
       // Small movement - snap back to current state
@@ -893,7 +891,7 @@ export default function WalkabilityPrototypeModal({
   // Single unified drawer - smoothly transitions between 2 states (collapsed ↔ expanded)
   return (
     <>
-      {/* Backdrop - visible only when expanded */}
+      {/* Backdrop - visible only when expanded, closes drawer completely */}
       {drawerState === 'expanded' && (
         <motion.div
           initial={{ opacity: 0 }}
@@ -901,10 +899,7 @@ export default function WalkabilityPrototypeModal({
           exit={{ opacity: 0 }}
           transition={springConfig}
           className="fixed inset-0 z-[499] bg-black/50"
-          onClick={() => {
-            setDrawerState('collapsed');
-            onClose();
-          }}
+          onClick={onClose}
         />
       )}
 
@@ -921,12 +916,22 @@ export default function WalkabilityPrototypeModal({
           }`}
         >
             {/* Handle bar - visual indicator for drag */}
-            <div className="flex justify-center pt-3 pb-2 w-full cursor-grab active:cursor-grabbing select-none touch-none">
+            <div className="flex justify-center pt-3 pb-2 w-full cursor-grab active:cursor-grabbing select-none touch-none relative">
               <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
+              {/* X button - consistent position in both states */}
+              <button
+                onClick={onClose}
+                className="absolute right-4 top-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                aria-label="Cerrar"
+              >
+                <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
 
           {drawerState === 'collapsed' ? (
-            // Collapsed: Location + Buttons
+            // Collapsed: Location + CTA Button
             <div className="px-6 pb-6 pt-2">
               {/* Location coordinates */}
               <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
@@ -939,7 +944,7 @@ export default function WalkabilityPrototypeModal({
                 </div>
               </div>
 
-              {/* Action buttons */}
+              {/* Action button */}
               <div className="flex gap-3">
                 <button
                   onClick={() => {
@@ -948,44 +953,20 @@ export default function WalkabilityPrototypeModal({
                   }}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3.5 rounded-lg font-semibold shadow-md transition-colors"
                 >
-                  Reportar Problema Aquí
-                </button>
-                <button
-                  onClick={onClose}
-                  className="px-4 py-3.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors"
-                >
-                  Cancelar
+                  Chequear Acera Aquí
                 </button>
               </div>
             </div>
           ) : (
             // Expanded: Full form
             <>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
-          <div>
-            <p className="text-xs uppercase text-gray-500 tracking-wide">
-              Ubicación seleccionada
-            </p>
-            <p className="text-sm font-semibold text-gray-900 dark:text-white">
-              {location.addressLabel || "Coordenadas seleccionadas"}
-            </p>
-            <p className="text-xs text-gray-500">
-              {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-gray-500">Puntaje total</p>
-            <p className="text-lg font-bold text-blue-600">
-              {scores.total.toFixed(1)} / {totalMax}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-2xl leading-none ml-4"
-          >
-            ×
-          </button>
+        <div className="px-6 pt-4 pb-2 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+            Nuevo Chequeo de Acera
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {location.addressLabel || `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`}
+          </p>
         </div>
 
               <div className="flex-1 overflow-y-auto px-6 py-4">
