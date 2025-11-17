@@ -952,7 +952,10 @@ export default function WalkabilityDrawer({
 
           {drawerState === 'collapsed' ? (
             // Collapsed: Location + CTA Button (compact to avoid blocking geolocation button)
-            <div className="px-6 pb-4 pt-1">
+            <div
+              className="px-6 pt-1"
+              style={{ paddingBottom: 'max(1rem, calc(1rem + env(safe-area-inset-bottom)))' }}
+            >
               {/* Location coordinates */}
               <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">
                 {location.isAddressLoading
@@ -989,7 +992,10 @@ export default function WalkabilityDrawer({
           </p>
         </div>
 
-              <div className="flex-1 overflow-y-auto px-6 py-4">
+              <div
+                className="flex-1 overflow-y-auto px-6 pt-4"
+                style={{ paddingBottom: 'max(1rem, calc(1rem + env(safe-area-inset-bottom)))' }}
+              >
                 <AccordionPrototype
                   openBuckets={openBuckets}
                   toggleBucket={toggleBucket}

@@ -323,9 +323,15 @@ function MapControls({
 
       {/* Mobile: Geolocation only (bottom-right, Google Maps style) */}
       {/* Adjust position when bottom sheet is visible - clearance for 145px collapsed drawer */}
+      {/* iOS safe area: adds extra padding to clear Liquid Glass bar */}
       <div
         ref={mobileControlsRef}
-        className={`md:hidden absolute ${hasBottomSheet ? 'bottom-48' : 'bottom-6'} right-4 z-[400] transition-all duration-300`}
+        className={`md:hidden absolute right-4 z-[400] transition-all duration-300`}
+        style={{
+          bottom: hasBottomSheet
+            ? 'max(12rem, calc(12rem + env(safe-area-inset-bottom)))'
+            : 'max(1.5rem, calc(1.5rem + env(safe-area-inset-bottom)))'
+        }}
       >
         <button
           onClick={handleGetLocation}
