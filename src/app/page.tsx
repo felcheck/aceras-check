@@ -55,7 +55,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-dvh w-full flex flex-col">
+    <div className="h-dvh w-full flex flex-col">
       {/* Header */}
       <Header numUsers={numUsers} />
 

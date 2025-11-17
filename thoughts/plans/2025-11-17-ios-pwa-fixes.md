@@ -144,7 +144,7 @@ appleWebApp: {
 **Implementation**:
 ```tsx
 // src/app/page.tsx:58
-<div className="min-h-dvh w-full flex flex-col">
+<div className="h-dvh w-full flex flex-col">
   <Header numUsers={numUsers} />
   <div className="flex-1 relative bg-gray-50">
     <MapView ... />
@@ -154,15 +154,12 @@ appleWebApp: {
 
 **Rationale**:
 - `dvh` = Dynamic Viewport Height (excludes iOS Safari's collapsible toolbar)
-- `min-h-dvh` allows flex-1 to expand map to full available height
+- `h-dvh` (not `min-h-dvh`) provides definite height for flex children
+- `flex-1` requires parent with definite height to calculate expansion
 - Works seamlessly with existing flex layout
 - Browser support: iOS 15.4+ (March 2022), safe for 2025
 
-**Alternative Fallback** (if dvh not sufficient):
-```tsx
-className="h-screen w-full flex flex-col"
-style={{ minHeight: '100dvh' }}
-```
+**Critical Fix**: Initial implementation used `min-h-dvh` which broke map rendering because `flex-1` needs a definite height parent. Changed to `h-dvh` to fix.
 
 ## Implementation Plan
 
@@ -322,11 +319,12 @@ style={{ minHeight: '100dvh' }}
 
 **File 2**: `src/app/page.tsx` (Line 58)
 ```tsx
-<div className="min-h-dvh w-full flex flex-col">
+<div className="h-dvh w-full flex flex-col">
 ```
-- Changed `h-screen` to `min-h-dvh`
+- Changed `h-screen` to `h-dvh` (not `min-h-dvh`)
 - Uses dynamic viewport height on iOS Safari
 - Map now expands to full visible height
+- **Note**: Must use `h-dvh` (definite height) not `min-h-dvh` for `flex-1` children to work
 
 ### Build Verification ✅
 
