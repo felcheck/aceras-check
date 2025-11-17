@@ -1572,7 +1572,7 @@ type DrawerState = 'collapsed' | 'expanded';
 **4. Simplified Height Calculation** ✅
 ```typescript
 const getTargetHeight = (state: DrawerState): number => {
-  if (state === 'collapsed') return 160; // px
+  if (state === 'collapsed') return 145; // px (reduced from 160 to avoid blocking geolocation button)
   return window.innerHeight; // 100vh for expanded
 };
 ```
@@ -1624,6 +1624,40 @@ Following Nielsen Norman Group guidance: **"Avoid awkward snap-resizing"**
 - Bottom edge stays anchored (height-based animation) ✅
 - Binary snap feels predictable and natural ✅
 - Spring physics responsive (stiffness: 350, damping: 35, mass: 0.8) ✅
+
+---
+
+### Mobile Refinements (Post-Implementation)
+
+**Issue 1: Body Scroll During Drawer Interaction** ✅ (Commit: 6070653)
+- **Problem**: Page scrolled when dragging drawer (not on exact handle)
+- **Root Cause**: Body scroll lock only active when `drawerState === 'expanded'`
+- **Fix**: Lock body scroll for entire drawer lifetime + add `touchAction: 'none'` to motion.div
+- **Impact**: Eliminates unwanted page scroll during all drawer gestures
+
+**Issue 2: Drawer Blocking Geolocation Button** ✅ (Commit: eeb2cce)
+- **Problem**: 160px collapsed drawer blocked mobile geolocation button (176px from bottom)
+- **Root Cause**: Insufficient clearance (only 16px gap)
+- **Fix**: Reduced collapsed height to 145px + moved button to `bottom-48` (192px)
+- **Impact**: Clear 47px gap between drawer and button
+
+**Updated Parameters**:
+```typescript
+// Collapsed height reduced for mobile geolocation button clearance
+const height = useMotionValue(145); // Was 160
+const minHeight = 145; // Match collapsed height
+
+// Tighter spacing in collapsed state
+- pb-6 → pb-4
+- pt-2 → pt-1
+- mb-3 → mb-2
+- py-3.5 → py-3
+
+// Mobile geolocation button moved higher
+- bottom-44 (176px) → bottom-48 (192px)
+```
+
+---
 
 ### Future Enhancements (If Needed)
 

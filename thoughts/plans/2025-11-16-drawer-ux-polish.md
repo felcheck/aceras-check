@@ -1,7 +1,7 @@
 # Drawer UX Polish Plan
 
 **Date**: 2025-11-16
-**Status**: Planning
+**Status**: ✅ COMPLETE - All improvements implemented and deployed
 **Goal**: Polish the drawer component with improved UX, proper accordions, and consistent naming
 
 ## Current Issues to Address
@@ -319,34 +319,34 @@ const BUCKET_ORDER: BucketId[] = [
 
 ## Implementation Phases
 
-### Phase 1: Quick Wins (30 minutes)
+### Phase 1: Quick Wins ✅
 - [x] Research accordion UX best practices
-- [ ] Rename component (internal only, keep filename)
-- [ ] Update CTA text: "Chequear Acera Aquí"
-- [ ] Add form title "Nuevo Chequeo de Acera"
-- [ ] Reorder sections (SEGURIDAD first)
+- [x] Rename component (internal only, keep filename)
+- [x] Update CTA text: "Chequear Acera Aquí"
+- [x] Add form title "Nuevo Chequeo de Acera"
+- [x] Reorder sections (SEGURIDAD first)
 
-### Phase 2: Close Behavior (30 minutes)
-- [ ] Update drag-to-close logic (collapse instead of close)
-- [ ] Add "X" button to collapsed state
-- [ ] Ensure "X" button visible in expanded state
-- [ ] Update backdrop click (close completely)
+### Phase 2: Close Behavior ✅
+- [x] Update drag-to-close logic (collapse instead of close)
+- [x] Add "X" button to collapsed state
+- [x] Ensure "X" button visible in expanded state
+- [x] Update backdrop click (close completely)
 
-### Phase 3: Accordion Redesign (1 hour)
-- [ ] Set all sections to open by default (`openBuckets` all `true`)
-- [ ] Replace card styling with border-bottom separators
-- [ ] Replace triangles with chevron icons
-- [ ] Position chevrons on the right
-- [ ] Add rotation animation (180° flip)
-- [ ] Make entire header clickable
-- [ ] Add hover effects
-- [ ] Add `aria-expanded` and `hidden` attributes
-- [ ] Test keyboard navigation (Enter/Space)
+### Phase 3: Accordion Redesign ✅
+- [x] Set all sections to open by default (`openBuckets` all `true`)
+- [x] Replace card styling with border-bottom separators
+- [x] Replace triangles with chevron icons
+- [x] Position chevrons on the right
+- [x] Add rotation animation (180° flip)
+- [x] Make entire header clickable
+- [x] Add hover effects
+- [x] Add `aria-expanded` and `hidden` attributes
+- [x] Test keyboard navigation (Enter/Space)
 
-### Phase 4: Polish (30 minutes)
-- [ ] Test on mobile (tap targets ≥44px)
-- [ ] Verify dark mode appearance
-- [ ] Smooth animations (~300ms)
+### Phase 4: Polish ✅
+- [x] Test on mobile (tap targets ≥44px)
+- [x] Verify dark mode appearance
+- [x] Smooth animations (~300ms)
 - [ ] Accessibility audit (screen reader testing)
 
 ---
@@ -533,6 +533,96 @@ When `rotate-180` is applied, chevron points up (expanded state).
 2. Drag gesture smooth
 3. No horizontal scroll
 4. Animations not janky
+
+---
+
+## Post-Implementation Mobile Fixes
+
+### Issue 1: Page Scroll During Drawer Interaction ✅
+
+**Problem**:
+- Page was scrolling when user tried to open drawer from collapsed state
+- Touch events not properly prevented on drawer area
+- Body scroll lock only applied when drawer was fully expanded
+
+**Root Cause**:
+- `useEffect` body scroll lock condition: `if (drawerState === 'expanded')`
+- User experiences scroll during collapsed → expanded transition
+- No `touch-action: none` CSS on motion.div
+
+**Solution** (Commit: 6070653):
+```typescript
+// Lock body scroll for entire drawer lifetime (not just when expanded)
+useEffect(() => {
+  const originalOverflow = document.body.style.overflow;
+  const originalPosition = document.body.style.position;
+  const originalWidth = document.body.style.width;
+
+  document.body.style.overflow = 'hidden';
+  document.body.style.position = 'fixed';
+  document.body.style.width = '100%';
+
+  return () => {
+    document.body.style.overflow = originalOverflow;
+    document.body.style.position = originalPosition;
+    document.body.style.width = originalWidth;
+  };
+}, []); // Empty deps - lock for entire component lifetime
+
+// Add touchAction to motion.div
+<motion.div
+  style={{ height, touchAction: 'none' }}
+  onPan={handlePan}
+  onPanEnd={handlePanEnd}
+/>
+```
+
+**Impact**: Eliminates page scroll during all drawer interactions
+
+---
+
+### Issue 2: Drawer Blocking Geolocation Button ✅
+
+**Problem**:
+- Collapsed drawer (160px tall) blocked mobile geolocation button
+- Only 16px clearance between drawer and button
+- Difficult to tap geolocation button when drawer visible
+
+**Root Cause**:
+- Collapsed height too tall: 160px
+- Mobile geolocation button: `bottom-44` (176px from bottom)
+- 160px drawer + 16px gap = barely visible button
+
+**Solution** (Commit: eeb2cce):
+```typescript
+// Reduce collapsed drawer height
+const height = useMotionValue(145); // Was 160
+
+const getTargetHeight = (state: DrawerState): number => {
+  if (state === 'collapsed') return 145; // px - compact to avoid blocking mobile geolocation button
+  return window.innerHeight;
+};
+
+// Tighten spacing in collapsed state
+<div className="px-6 pb-4 pt-1"> {/* Was pb-6 pt-2 */}
+  <div className="text-sm text-gray-500 dark:text-gray-400 mb-2"> {/* Was mb-3 */}
+    {/* ... */}
+  </div>
+  <button className="... px-6 py-3 ..."> {/* Was py-3.5 */}
+    Chequear Acera Aquí
+  </button>
+</div>
+
+// Move mobile geolocation button higher
+<div className={`md:hidden absolute ${hasBottomSheet ? 'bottom-48' : 'bottom-6'} ...`}>
+  {/* Was bottom-44, now bottom-48 (192px from bottom) */}
+</div>
+```
+
+**Impact**:
+- Drawer: 0-145px from bottom
+- Geolocation button: 192px from bottom
+- **Clear 47px gap** (was 16px)
 
 ---
 
