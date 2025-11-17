@@ -68,52 +68,12 @@ function App() {
         />
       </div>
 
-      {/* Google Maps-style Bottom Sheet */}
-      {selectedLocation && !showReportForm && (
-        <div className="absolute bottom-0 left-0 right-0 z-[500] animate-slide-up">
-          <div className="bg-white dark:bg-gray-800 rounded-t-2xl shadow-2xl mx-auto max-w-2xl">
-            {/* Handle bar for mobile */}
-            <div className="flex justify-center pt-3 pb-2">
-              <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
-            </div>
-
-            {/* Content */}
-            <div className="px-6 pb-6 pt-2">
-              {/* Location coordinates */}
-              <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                {selectedLocation.isAddressLoading
-                  ? "Cargando dirección..."
-                  : selectedLocation.addressLabel ||
-                    `${selectedLocation.lat.toFixed(6)}, ${selectedLocation.lng.toFixed(6)}`}
-                <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  {selectedLocation.lat.toFixed(6)}, {selectedLocation.lng.toFixed(6)}
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowReportForm(true)}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3.5 rounded-lg font-semibold shadow-md transition-colors"
-                >
-                  Reportar Problema Aquí
-                </button>
-                <button
-                  onClick={() => setSelectedLocation(null)}
-                  className="px-4 py-3.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Walkability prototype modal */}
-      {showReportForm && selectedLocation && (
+      {/* Unified Expandable Drawer */}
+      {selectedLocation && (
         <WalkabilityPrototypeModal
           location={selectedLocation}
+          isExpanded={showReportForm}
+          onExpand={() => setShowReportForm(true)}
           onClose={() => {
             setShowReportForm(false);
             setSelectedLocation(null);

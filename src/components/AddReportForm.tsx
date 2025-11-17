@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { db } from "@/lib/db";
 import { id } from "@instantdb/react";
 import { calculateSeguridadScore } from "@/lib/scoring";
@@ -47,7 +47,7 @@ export default function AddReportForm({
   const [safetyRating, setSafetyRating] = useState<number | null>(null);
   const [lightingRating, setLightingRating] = useState<number | null>(null);
   const [accessibilityRating, setAccessibilityRating] = useState<number | null>(null);
-  const [severity, setSeverity] = useState<number>(3);
+  const [severity, setSeverity] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // SEGURIDAD fields
@@ -56,11 +56,59 @@ export default function AddReportForm({
   const [comfortSpaceRating, setComfortSpaceRating] = useState<number | null>(null);
   const [obstructions, setObstructions] = useState<string[]>([]);
 
+  // Accordion state
+  const [seguridadOpen, setSeguridadOpen] = useState(true);
+  const [otrosOpen, setOtrosOpen] = useState(true);
+
+  // Completion checkers
+  const isSeguridadComplete = (): boolean => {
+    // Base fields (always required)
+    if (hasSidewalk === null) return false;
+    if (widthRating === null) return false;
+    if (comfortSpaceRating === null) return false;
+    if (hasLighting === null) return false;
+
+    // Lighting quality (conditionally required)
+    if (hasLighting === true && lightingRating === null) return false;
+
+    return true;
+  };
+
+  const isOtrosComplete = (): boolean => {
+    return (
+      category !== "" &&
+      description.trim() !== "" &&
+      conditionRating !== null &&
+      accessibilityRating !== null &&
+      severity !== null
+    );
+  };
+
+  // Auto-close effects
+  useEffect(() => {
+    if (isSeguridadComplete() && seguridadOpen) {
+      const timer = setTimeout(() => setSeguridadOpen(false), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [hasSidewalk, widthRating, obstructions, comfortSpaceRating, hasLighting, lightingRating, seguridadOpen]);
+
+  useEffect(() => {
+    if (isOtrosComplete() && otrosOpen) {
+      const timer = setTimeout(() => setOtrosOpen(false), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [category, description, conditionRating, accessibilityRating, severity, otrosOpen]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!category || !description) {
       alert("Please fill in category and description");
+      return;
+    }
+
+    if (severity === null) {
+      alert("Please set the severity level");
       return;
     }
 
@@ -119,11 +167,55 @@ export default function AddReportForm({
     }
   };
 
-  const SectionHeading = ({ children }: { children: React.ReactNode }) => (
-    <h3 className="text-base font-bold text-gray-800 mb-3 pb-2 border-b-2 border-blue-500">
-      {children}
-    </h3>
-  );
+  interface AccordionSectionProps {
+    title: string;
+    isComplete: boolean;
+    isOpen: boolean;
+    onToggle: () => void;
+    children: React.ReactNode;
+  }
+
+  const AccordionSection = ({
+    title,
+    isComplete,
+    isOpen,
+    onToggle,
+    children,
+  }: AccordionSectionProps) => {
+    return (
+      <div
+        className={`border-2 rounded-lg mb-4 transition-colors ${
+          isComplete ? "border-green-500" : "border-gray-300"
+        }`}
+      >
+        {/* Header */}
+        <button
+          type="button"
+          onClick={onToggle}
+          className={`w-full px-4 py-3 flex items-center justify-between text-left font-semibold text-gray-800 ${
+            isComplete && !isOpen ? "hover:bg-green-50" : ""
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-lg">
+              {isOpen ? "▼" : "▶"}
+            </span>
+            <span>{title}</span>
+            {isComplete && (
+              <span className="text-green-600 text-xl">✓</span>
+            )}
+          </div>
+        </button>
+
+        {/* Content */}
+        {isOpen && (
+          <div className="px-4 py-4 border-t-2 border-gray-200">
+            {children}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const BooleanToggle = ({
     value,
@@ -275,9 +367,12 @@ export default function AddReportForm({
           </div>
 
           {/* SEGURIDAD Section */}
-          <div className="mb-6">
-            <SectionHeading>SEGURIDAD (Infraestructura)</SectionHeading>
-
+          <AccordionSection
+            title="SEGURIDAD (Infraestructura)"
+            isComplete={isSeguridadComplete()}
+            isOpen={seguridadOpen}
+            onToggle={() => setSeguridadOpen(!seguridadOpen)}
+          >
             <BooleanToggle
               label="1. ¿Existe la acera?"
               value={hasSidewalk}
@@ -318,12 +413,15 @@ export default function AddReportForm({
                 />
               </div>
             )}
-          </div>
+          </AccordionSection>
 
           {/* Other Details Section */}
-          <div className="mb-6 border-t pt-6">
-            <SectionHeading>Otros Detalles</SectionHeading>
-
+          <AccordionSection
+            title="Otros Detalles"
+            isComplete={isOtrosComplete()}
+            isOpen={otrosOpen}
+            onToggle={() => setOtrosOpen(!otrosOpen)}
+          >
             {/* Category */}
             <div className="mb-4">
               <label
@@ -380,13 +478,13 @@ export default function AddReportForm({
             {/* Severity */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Severidad: {severity}/5
+                Severidad: {severity !== null ? `${severity}/5` : "No seleccionado"}
               </label>
               <input
                 type="range"
                 min="1"
                 max="5"
-                value={severity}
+                value={severity ?? 3}
                 onChange={(e) => setSeverity(parseInt(e.target.value))}
                 className="w-full"
               />
@@ -395,7 +493,7 @@ export default function AddReportForm({
                 <span>Alta</span>
               </div>
             </div>
-          </div>
+          </AccordionSection>
 
           {/* Action Buttons */}
           <div className="flex gap-3 pt-4 border-t">
