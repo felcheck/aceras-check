@@ -322,10 +322,10 @@ function MapControls({
       </div>
 
       {/* Mobile: Geolocation only (bottom-right, Google Maps style) */}
-      {/* Adjust position when bottom sheet is visible */}
+      {/* Adjust position when bottom sheet is visible - clearance for 145px collapsed drawer */}
       <div
         ref={mobileControlsRef}
-        className={`md:hidden absolute ${hasBottomSheet ? 'bottom-44' : 'bottom-6'} right-4 z-[400] transition-all duration-300`}
+        className={`md:hidden absolute ${hasBottomSheet ? 'bottom-48' : 'bottom-6'} right-4 z-[400] transition-all duration-300`}
       >
         <button
           onClick={handleGetLocation}

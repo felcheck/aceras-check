@@ -762,11 +762,11 @@ export default function WalkabilityDrawer({
 
   // Height-based animation (keeps bottom anchored)
   const isDragging = useRef(false);
-  const height = useMotionValue(160); // Start at collapsed height
+  const height = useMotionValue(145); // Start at collapsed height
 
   // Calculate target heights for each state (two-state system)
   const getTargetHeight = (state: DrawerState): number => {
-    if (state === 'collapsed') return 160; // px
+    if (state === 'collapsed') return 145; // px - compact to avoid blocking mobile geolocation button
     return window.innerHeight; // 100vh for expanded
   };
 
@@ -838,7 +838,7 @@ export default function WalkabilityDrawer({
     const newHeight = currentHeight - info.delta.y; // Subtract because up is negative
 
     // Clamp between min and max with rubber banding effect
-    const minHeight = 160;
+    const minHeight = 145; // Match collapsed height
     const maxHeight = window.innerHeight;
 
     if (newHeight < minHeight) {
@@ -951,10 +951,10 @@ export default function WalkabilityDrawer({
             </div>
 
           {drawerState === 'collapsed' ? (
-            // Collapsed: Location + CTA Button
-            <div className="px-6 pb-6 pt-2">
+            // Collapsed: Location + CTA Button (compact to avoid blocking geolocation button)
+            <div className="px-6 pb-4 pt-1">
               {/* Location coordinates */}
-              <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">
                 {location.isAddressLoading
                   ? "Cargando dirección..."
                   : location.addressLabel ||
@@ -971,7 +971,7 @@ export default function WalkabilityDrawer({
                     setDrawerState('expanded');
                     onExpand();
                   }}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3.5 rounded-lg font-semibold shadow-md transition-colors"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold shadow-md transition-colors"
                 >
                   Chequear Acera Aquí
                 </button>
