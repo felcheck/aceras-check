@@ -784,6 +784,27 @@ export default function WalkabilityDrawer({
     setOpenBuckets(prev => ({ ...prev, [bucket]: !prev[bucket] }));
   };
 
+  // Lock body scroll when drawer is expanded (prevent page scroll on mobile)
+  useEffect(() => {
+    if (drawerState === 'expanded') {
+      // Save original overflow
+      const originalOverflow = document.body.style.overflow;
+      const originalPosition = document.body.style.position;
+
+      // Lock scroll
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+
+      // Cleanup: restore scroll on unmount or collapse
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        document.body.style.position = originalPosition;
+        document.body.style.width = '';
+      };
+    }
+  }, [drawerState]);
+
   const totalMax =
     WALKABILITY_META.utilidad.max +
     WALKABILITY_META.seguridad.max +
