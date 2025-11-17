@@ -1,7 +1,7 @@
 # iOS Safari Liquid Glass UI Fix
 
 **Date**: 2025-11-16
-**Status**: Planning
+**Status**: ✅ COMPLETE - PWA + Safe Area Insets Implemented
 **Goal**: Fix "off" appearance caused by iOS 26 Safari's transparent Liquid Glass bottom bar
 
 ## Problem Statement
@@ -146,37 +146,38 @@ body.drawer-active {
 
 ## Implementation Plan
 
-### Phase 1: Add PWA Manifest (15 minutes)
+### Phase 1: Add PWA Manifest ✅
 
-**Files to Create**:
-- [ ] `public/manifest.json` - Web app manifest
-- [ ] `public/icon-192.png` - 192x192 icon
-- [ ] `public/icon-512.png` - 512x512 icon
-- [ ] `public/apple-touch-icon.png` - 180x180 icon (optional but recommended)
+**Files Created**:
+- [x] `public/manifest.json` - Web app manifest
+- [x] `public/ICONS-TODO.md` - Icon generation instructions (icons pending)
+- [ ] `public/icon-192.png` - 192x192 icon (TODO)
+- [ ] `public/icon-512.png` - 512x512 icon (TODO)
+- [ ] `public/apple-touch-icon.png` - 180x180 icon (TODO)
 
-**Files to Update**:
-- [ ] `src/app/layout.tsx` - Add PWA meta tags and manifest link
+**Files Updated**:
+- [x] `src/app/layout.tsx` - Add PWA meta tags and manifest link
 
-### Phase 2: Update Viewport (2 minutes)
+### Phase 2: Update Viewport ✅
 
-- [ ] Add `viewport-fit=cover` to existing viewport meta tag in `src/app/layout.tsx`
+- [x] Add `viewport-fit=cover` to existing viewport meta tag in `src/app/layout.tsx`
 
-### Phase 3: Apply Safe Area Insets (10 minutes)
+### Phase 3: Apply Safe Area Insets ✅
 
-**Files to Update**:
-- [ ] `src/components/MapView.tsx` - Update mobile geolocation button positioning
-- [ ] `src/components/WalkabilityPrototypeModal.tsx` - Add safe area to drawer
-- [ ] `src/app/globals.css` - Add safe area CSS utilities (optional)
+**Files Updated**:
+- [x] `src/components/MapView.tsx` - Update mobile geolocation button positioning
+- [x] `src/components/WalkabilityPrototypeModal.tsx` - Add safe area to drawer (collapsed & expanded)
 
-### Phase 4: Testing (5 minutes)
+### Phase 4: Testing
 
-**Browser Mode**:
+**Browser Mode** (Ready to test):
 - [ ] Open in iOS Safari
 - [ ] Verify geolocation button clears glass bar
 - [ ] Verify drawer doesn't overlap glass bar
 - [ ] Check desktop still works (safe-area-inset-bottom = 0)
 
-**PWA Mode**:
+**PWA Mode** (Pending icons):
+- [ ] Generate icons (see `public/ICONS-TODO.md`)
 - [ ] Tap Share → Add to Home Screen
 - [ ] Launch from home screen
 - [ ] Verify fullscreen (no Safari bars)
@@ -275,6 +276,134 @@ bottom: max(12rem, calc(12rem + env(safe-area-inset-bottom)));
 - Install prompt UI
 
 **Current Focus**: Visual polish only - make it look good in both Safari and PWA mode.
+
+---
+
+## Implementation Summary (Commit: b878833)
+
+### What Was Implemented ✅
+
+**1. PWA Manifest** (`public/manifest.json`)
+```json
+{
+  "name": "Aceras Check",
+  "short_name": "Aceras",
+  "display": "standalone",
+  "theme_color": "#1e40af",
+  "icons": [...]
+}
+```
+- Enables "Add to Home Screen" functionality
+- Fullscreen mode when installed (no Safari bars)
+- Native app-like experience
+
+**2. Layout Updates** (`src/app/layout.tsx`)
+```tsx
+// Added PWA meta tags
+export const metadata: Metadata = {
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Aceras',
+  },
+};
+
+// Added viewport-fit=cover
+export const viewport: Viewport = {
+  viewportFit: 'cover', // Critical for iOS safe area insets
+};
+```
+
+**3. Mobile Geolocation Button** (`src/components/MapView.tsx`)
+```tsx
+// Before: className="...bottom-48 right-4..."
+// After: Inline style with safe area
+style={{
+  bottom: hasBottomSheet
+    ? 'max(12rem, calc(12rem + env(safe-area-inset-bottom)))'
+    : 'max(1.5rem, calc(1.5rem + env(safe-area-inset-bottom)))'
+}}
+```
+- Adds extra padding on iOS to clear Liquid Glass bar
+- Desktop: safe-area-inset-bottom = 0 (no change)
+- Mobile with drawer: 12rem + safe area
+- Mobile without drawer: 1.5rem + safe area
+
+**4. Drawer Safe Area** (`src/components/WalkabilityPrototypeModal.tsx`)
+
+**Collapsed State**:
+```tsx
+<div
+  className="px-6 pt-1"
+  style={{ paddingBottom: 'max(1rem, calc(1rem + env(safe-area-inset-bottom)))' }}
+>
+```
+
+**Expanded State** (scrollable area):
+```tsx
+<div
+  className="flex-1 overflow-y-auto px-6 pt-4"
+  style={{ paddingBottom: 'max(1rem, calc(1rem + env(safe-area-inset-bottom)))' }}
+>
+```
+- Content doesn't get hidden behind iOS safe area
+- Scrollable form has proper bottom padding
+- Desktop: no impact (safe-area-inset-bottom = 0)
+
+### What's Pending ⏳
+
+**PWA Icons** - See `public/ICONS-TODO.md`
+- Need icon-192.png (192x192px)
+- Need icon-512.png (512x512px)
+- Need apple-touch-icon.png (180x180px)
+- App works now, icons only needed for PWA installation
+
+### How It Works 🔧
+
+**Browser Mode** (iOS Safari):
+- `viewport-fit=cover` tells iOS to extend content to edges
+- `env(safe-area-inset-bottom)` provides height of iOS home bar/glass UI
+- `max()` ensures minimum spacing even on desktop (where env() = 0)
+- `calc()` adds safe area padding on top of base spacing
+
+**PWA Mode** (Installed to Home Screen):
+- `display: standalone` removes Safari UI completely
+- App runs edge-to-edge with no browser chrome
+- Safe area insets still apply to ensure content clears notch/home indicator
+
+**Example**:
+```css
+/* Desktop/Android */
+bottom: max(12rem, calc(12rem + 0)) = 12rem (192px)
+
+/* iOS with 34px safe area */
+bottom: max(12rem, calc(12rem + 34px)) = calc(12rem + 34px) = 226px
+
+/* Result: Always at least 192px, more on iOS to clear glass bar */
+```
+
+### Browser Compatibility 📱
+
+- **iOS Safari 11+**: Full support (2017+)
+- **Desktop browsers**: `env(safe-area-inset-bottom)` returns 0 (graceful fallback)
+- **Android Chrome**: `env()` returns 0 (no safe area needed)
+- **Next.js 14+**: Viewport API fully supported
+
+### Testing Checklist
+
+**Browser Mode** (Works immediately):
+- [x] Code deployed
+- [ ] Test on iOS Safari (user testing)
+- [ ] Verify geolocation button clears glass bar
+- [ ] Verify drawer doesn't overlap glass bar
+- [ ] Confirm desktop unchanged
+
+**PWA Mode** (Pending icons):
+- [ ] Generate icons
+- [ ] Add to Home Screen on iOS
+- [ ] Launch standalone app
+- [ ] Verify fullscreen experience
 
 ---
 
