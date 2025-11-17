@@ -924,7 +924,10 @@ export default function WalkabilityDrawer({
       )}
 
       {/* Bottom-anchored drawer - height animates, bottom stays at 0 */}
-      <div className={`fixed z-[500] bottom-0 left-0 right-0 md:left-1/2 md:-translate-x-1/2 md:w-[768px]`}>
+      <div
+        className={`fixed z-[500] bottom-0 left-0 right-0 md:left-1/2 md:-translate-x-1/2 md:w-[768px]`}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
         <motion.div
           style={{ height, touchAction: 'none' }}  // Height animates - bottom stays fixed! touchAction prevents browser scroll
           onPan={handlePan}

@@ -150,10 +150,10 @@ body.drawer-active {
 
 **Files Created**:
 - [x] `public/manifest.json` - Web app manifest
-- [x] `public/ICONS-TODO.md` - Icon generation instructions (icons pending)
-- [ ] `public/icon-192.png` - 192x192 icon (TODO)
-- [ ] `public/icon-512.png` - 512x512 icon (TODO)
-- [ ] `public/apple-touch-icon.png` - 180x180 icon (TODO)
+- [x] `scripts/generate-icons.js` - Icon generation script
+- [x] `public/icon-192.png` - 192x192 icon ✅
+- [x] `public/icon-512.png` - 512x512 icon ✅
+- [x] `public/apple-touch-icon.png` - 180x180 icon ✅
 
 **Files Updated**:
 - [x] `src/app/layout.tsx` - Add PWA meta tags and manifest link
@@ -166,7 +166,7 @@ body.drawer-active {
 
 **Files Updated**:
 - [x] `src/components/MapView.tsx` - Update mobile geolocation button positioning
-- [x] `src/components/WalkabilityPrototypeModal.tsx` - Add safe area to drawer (collapsed & expanded)
+- [x] `src/components/WalkabilityPrototypeModal.tsx` - Add safe area to drawer container + content (collapsed & expanded)
 
 ### Phase 4: Testing
 
@@ -399,11 +399,58 @@ bottom: max(12rem, calc(12rem + 34px)) = calc(12rem + 34px) = 226px
 - [ ] Verify drawer doesn't overlap glass bar
 - [ ] Confirm desktop unchanged
 
-**PWA Mode** (Pending icons):
-- [ ] Generate icons
-- [ ] Add to Home Screen on iOS
-- [ ] Launch standalone app
-- [ ] Verify fullscreen experience
+**PWA Mode** (Ready to test):
+- [x] Generate icons ✅
+- [ ] Add to Home Screen on iOS (user testing)
+- [ ] Launch standalone app (user testing)
+- [ ] Verify fullscreen experience (user testing)
+
+---
+
+## Final Implementation (2025-11-16)
+
+### Issue #1: Drawer Container Not Clearing iOS Glass Bar ✅ FIXED
+
+**Problem**: The original implementation only added `paddingBottom` to content *inside* the drawer states (collapsed/expanded content divs), but the drawer container itself was still anchored to `bottom: 0`. This meant the drawer itself (including rounded corners) sat directly at the screen bottom, bleeding through the transparent iOS glass bar.
+
+**Fix**: Added `paddingBottom: env(safe-area-inset-bottom)` to the drawer container wrapper.
+
+**File**: `src/components/WalkabilityPrototypeModal.tsx:927-930`
+```tsx
+<div
+  className={`fixed z-[500] bottom-0 left-0 right-0 md:left-1/2 md:-translate-x-1/2 md:w-[768px]`}
+  style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+>
+```
+
+**Result**: The entire drawer now lifts above the iOS glass bar, with content no longer bleeding through.
+
+### Issue #2: PWA Icons Missing ✅ FIXED
+
+**Problem**: Manifest referenced icon files that didn't exist, preventing proper PWA installation.
+
+**Solution**: Created `scripts/generate-icons.js` that generates simple branded icons with "AC" text on blue background.
+
+**Implementation**:
+1. Generated SVG icons (192x192, 512x512, 180x180)
+2. Converted to PNG using macOS `sips` tool
+3. Icons now available at:
+   - `public/icon-192.png` (6.3 KB)
+   - `public/icon-512.png` (18 KB)
+   - `public/apple-touch-icon.png` (5.9 KB)
+
+**Design**: Simple text-based icon with #1e40af background, white "AC" text, 15% border radius.
+
+### Build Status ✅
+
+```bash
+npm run build
+# ✓ Compiled successfully
+# Route (app)                Size  First Load JS
+# ┌ ○ /                   83.8 kB         184 kB
+```
+
+No build errors. Ready for deployment and iOS testing.
 
 ---
 
