@@ -188,6 +188,10 @@ export default function AddReportForm({
     }
   };
 
+  const handleOpenFilePicker = () => {
+    fileInputRef.current?.click();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -491,7 +495,7 @@ export default function AddReportForm({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/jpg,image/png,image/heic,image/heif,image/webp"
                   onChange={handlePhotoChange}
                   className="hidden"
                   id="photo-input"

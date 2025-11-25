@@ -859,6 +859,10 @@ export default function WalkabilityDrawer({
     }
   };
 
+  const handleOpenFilePicker = () => {
+    fileInputRef.current?.click();
+  };
+
   const handleSubmit = async () => {
     setIsSubmitting(true);
     setUploadError("");
@@ -1152,7 +1156,7 @@ export default function WalkabilityDrawer({
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/jpg,image/png,image/heic,image/heif,image/webp"
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
@@ -1164,7 +1168,7 @@ export default function WalkabilityDrawer({
                   {!photoPreview && !isCompressing && (
                     <button
                       type="button"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={handleOpenFilePicker}
                       disabled={isSubmitting}
                       className="w-full border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg px-4 py-8 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors disabled:opacity-50"
                     >
@@ -1191,7 +1195,7 @@ export default function WalkabilityDrawer({
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          onClick={() => fileInputRef.current?.click()}
+                          onClick={handleOpenFilePicker}
                           disabled={isSubmitting}
                           className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
                         >
