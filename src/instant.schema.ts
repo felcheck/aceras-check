@@ -25,7 +25,7 @@ const _schema = i.schema({
     }),
     reports: i.entity({
       // Report category
-      category: i.string().indexed(), // missing_sidewalk, obstruction, broken_pavement, etc.
+      category: i.string().indexed().optional(), // missing_sidewalk, obstruction, broken_pavement, etc.
 
       // Ratings (1-5 scale)
       conditionRating: i.number().optional(),
@@ -40,23 +40,29 @@ const _schema = i.schema({
       comfortSpaceRating: i.number().optional(), // 1-5: buffer from traffic
       obstructions: i.json().optional(), // Array of obstruction types: huecos, interrupciones, carros_mal_estacionados, etc.
 
-      // Computed walkability scores
+      // Computed walkability scores (4-bucket system)
       seguridadScore: i.number().optional(), // 0-5 points (SEGURIDAD bucket)
+      utilidadScore: i.number().optional(), // 0-1 points (UTILIDAD bucket)
+      comodidadScore: i.number().optional(), // 0-2 points (COMODIDAD bucket)
+      interesanteScore: i.number().optional(), // 0-2 points (INTERESANTE bucket)
+      totalScore: i.number().optional(), // 0-10 total walkability score
+      walkabilityState: i.string().optional(), // JSON of full walkability state
 
       // Description and details
-      description: i.string(),
+      description: i.string().optional(),
       severity: i.number().optional(), // 1-5
 
       // Location data
       lat: i.number(),
       lng: i.number(),
+      address: i.string().optional(), // Human-readable address
       roadId: i.string().optional(), // OSM way ID (matched client-side)
       roadName: i.string().optional(),
       distanceFromRoad: i.number().optional(), // meters
 
       // Status and verification
-      status: i.string().indexed(), // pending, verified, resolved
-      verified: i.boolean(),
+      status: i.string().indexed().optional(), // pending, verified, resolved
+      verified: i.boolean().optional(),
 
       // Metadata
       createdAt: i.number().indexed(),

@@ -544,10 +544,10 @@ export default function MapView({
               <Popup>
                 <div className="p-2">
                   <h3 className="font-semibold text-sm mb-1">
-                    {report.category.replace(/_/g, " ").toUpperCase()}
+                    {report.category ? report.category.replace(/_/g, " ").toUpperCase() : "Chequeo de Acera"}
                   </h3>
                   <p className="text-xs text-gray-600 mb-2">
-                    {report.description}
+                    {report.description || `Walkability Score: ${report.totalScore?.toFixed(1) || "N/A"}/10`}
                   </p>
                   {displayAddress && (
                     <p className="text-xs text-gray-500 mb-2">{displayAddress}</p>

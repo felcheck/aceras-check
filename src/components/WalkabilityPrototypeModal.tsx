@@ -3,6 +3,8 @@
 import React, { useMemo, useState, useRef, useEffect } from "react";
 import { motion, useMotionValue, useTransform, PanInfo, animate } from "framer-motion";
 import { SelectedLocation } from "@/types/location";
+import imageCompression from "browser-image-compression";
+import { db } from "@/lib/db";
 
 type BucketId = "utilidad" | "seguridad" | "comodidad" | "interesante";
 
@@ -757,6 +759,14 @@ export default function WalkabilityDrawer({
     interesante: true,
   });
 
+  // Photo upload state
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [uploadError, setUploadError] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Internal state for 3-snap-point system
   const [drawerState, setDrawerState] = useState<DrawerState>('collapsed');
 
@@ -782,6 +792,132 @@ export default function WalkabilityDrawer({
 
   const toggleBucket = (bucket: BucketId) => {
     setOpenBuckets(prev => ({ ...prev, [bucket]: !prev[bucket] }));
+  };
+
+  // Photo cleanup effect
+  useEffect(() => {
+    return () => {
+      if (photoPreview) {
+        URL.revokeObjectURL(photoPreview);
+      }
+    };
+  }, [photoPreview]);
+
+  // Photo compression handler
+  const handlePhotoSelect = async (file: File) => {
+    setIsCompressing(true);
+    setUploadError("");
+
+    if (photoPreview) {
+      URL.revokeObjectURL(photoPreview);
+    }
+
+    try {
+      const maxSize = 10 * 1024 * 1024;
+      if (file.size > maxSize) {
+        throw new Error("La foto es demasiado grande (máximo 10MB)");
+      }
+
+      if (!file.type.startsWith("image/")) {
+        throw new Error("Tipo de archivo no soportado. Por favor selecciona una imagen.");
+      }
+
+      console.log(`Original photo: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+
+      const options = {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+        fileType: "image/jpeg" as const,
+        initialQuality: 0.85,
+      };
+
+      const compressedFile = await imageCompression(file, options);
+
+      console.log(`Compressed: ${(file.size / 1024 / 1024).toFixed(2)}MB → ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+
+      setPhoto(compressedFile);
+      const previewUrl = URL.createObjectURL(compressedFile);
+      setPhotoPreview(previewUrl);
+    } catch (error) {
+      console.error("Photo compression error:", error);
+      setUploadError(error instanceof Error ? error.message : "Error al procesar la foto. Intenta de nuevo.");
+    } finally {
+      setIsCompressing(false);
+    }
+  };
+
+  const handlePhotoRemove = () => {
+    if (photoPreview) {
+      URL.revokeObjectURL(photoPreview);
+    }
+    setPhoto(null);
+    setPhotoPreview(null);
+    setUploadError("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    setUploadError("");
+
+    try {
+      // Generate report ID
+      const reportId = crypto.randomUUID();
+
+      // Upload photo if present
+      let photoId: string | null = null;
+      if (photo) {
+        try {
+          const path = `reports/${reportId}/${Date.now()}.jpg`;
+          const { data } = await db.storage.uploadFile(path, photo, {
+            contentType: "image/jpeg",
+            contentDisposition: "inline",
+          });
+          photoId = data.id;
+          console.log("Photo uploaded successfully:", photoId);
+        } catch (uploadError) {
+          console.error("Photo upload failed:", uploadError);
+          setUploadError("No se pudo subir la foto, pero el reporte se guardará.");
+        }
+      }
+
+      // Create report with walkability scores
+      const transactions: any[] = [
+        db.tx.reports[reportId].update({
+          lat: location.lat,
+          lng: location.lng,
+          address: location.addressLabel || `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`,
+          utilidadScore: scores.utilidad,
+          seguridadScore: scores.seguridad,
+          comodidadScore: scores.comodidad,
+          interesanteScore: scores.interesante,
+          totalScore: scores.total,
+          walkabilityState: JSON.stringify(state),
+          createdAt: Date.now(),
+        }),
+      ];
+
+      // Link photo if uploaded
+      if (photoId) {
+        transactions.push(db.tx.reports[reportId].link({ photos: photoId }));
+      }
+
+      await db.transact(transactions);
+
+      console.log("Walkability check saved successfully");
+
+      // Close drawer and reset
+      onClose();
+      handlePhotoRemove();
+    } catch (error) {
+      console.error("Submit error:", error);
+      setUploadError(error instanceof Error ? error.message : "Error al guardar. Intenta de nuevo.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Lock body scroll whenever drawer is mounted (prevent page scroll on mobile during all interactions)
@@ -1006,6 +1142,95 @@ export default function WalkabilityDrawer({
                   scores={scores}
                   updateBucket={updateBucket}
                 />
+
+                {/* Photo Upload Section */}
+                <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                    📸 Foto del Problema (opcional)
+                  </h3>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handlePhotoSelect(file);
+                    }}
+                    disabled={isCompressing || isSubmitting}
+                  />
+
+                  {!photoPreview && !isCompressing && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isSubmitting}
+                      className="w-full border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg px-4 py-8 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors disabled:opacity-50"
+                    >
+                      <span className="text-4xl mb-2 block">📷</span>
+                      <span className="text-blue-600 dark:text-blue-400 font-medium">+ Tomar/Subir Foto</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Max 10MB • Se comprimirá automáticamente
+                      </p>
+                    </button>
+                  )}
+
+                  {isCompressing && (
+                    <div className="w-full border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-8 text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Procesando foto...</p>
+                    </div>
+                  )}
+
+                  {photoPreview && !isCompressing && (
+                    <div className="space-y-3">
+                      <div className="relative rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                        <img src={photoPreview} alt="Preview" className="w-full h-auto" />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isSubmitting}
+                          className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+                        >
+                          Cambiar Foto
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handlePhotoRemove}
+                          disabled={isSubmitting}
+                          className="px-4 py-2 border border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Foto lista para subir ({(photo!.size / 1024).toFixed(0)} KB)
+                      </p>
+                    </div>
+                  )}
+
+                  {uploadError && (
+                    <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                      <p className="text-sm text-red-600 dark:text-red-400">{uploadError}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Submit Button */}
+                <div className="mt-6 mb-8">
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={isCompressing || isSubmitting}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-lg font-semibold shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSubmitting ? "Guardando..." : "Guardar Chequeo"}
+                  </button>
+                </div>
               </div>
             </>
           )}

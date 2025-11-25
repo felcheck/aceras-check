@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { db } from "@/lib/db";
 import { id } from "@instantdb/react";
 import { calculateSeguridadScore } from "@/lib/scoring";
 import { SelectedLocation } from "@/types/location";
+import imageCompression from "browser-image-compression";
 
 interface AddReportFormProps {
   location: SelectedLocation;
@@ -50,6 +51,13 @@ export default function AddReportForm({
   const [severity, setSeverity] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Photo upload state
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [uploadError, setUploadError] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // SEGURIDAD fields
   const [hasSidewalk, setHasSidewalk] = useState<boolean | null>(null);
   const [hasLighting, setHasLighting] = useState<boolean | null>(null);
@@ -84,6 +92,15 @@ export default function AddReportForm({
     );
   };
 
+  // Cleanup photo preview on unmount
+  useEffect(() => {
+    return () => {
+      if (photoPreview) {
+        URL.revokeObjectURL(photoPreview);
+      }
+    };
+  }, [photoPreview]);
+
   // Auto-close effects
   useEffect(() => {
     if (isSeguridadComplete() && seguridadOpen) {
@@ -98,6 +115,78 @@ export default function AddReportForm({
       return () => clearTimeout(timer);
     }
   }, [category, description, conditionRating, accessibilityRating, severity, otrosOpen]);
+
+  // Photo selection and compression handler
+  const handlePhotoSelect = async (file: File) => {
+    setIsCompressing(true);
+    setUploadError("");
+
+    // Clean up previous preview
+    if (photoPreview) {
+      URL.revokeObjectURL(photoPreview);
+    }
+
+    try {
+      // Validate file size (max 10MB original)
+      const maxSize = 10 * 1024 * 1024;
+      if (file.size > maxSize) {
+        throw new Error("La foto es demasiado grande (máximo 10MB)");
+      }
+
+      // Validate file type
+      if (!file.type.startsWith("image/")) {
+        throw new Error("Tipo de archivo no soportado. Por favor selecciona una imagen.");
+      }
+
+      console.log(`Original photo: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+
+      // Compress image
+      const options = {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+        fileType: "image/jpeg",
+        initialQuality: 0.85,
+      };
+
+      const compressedFile = await imageCompression(file, options);
+
+      console.log(
+        `Compressed: ${(file.size / 1024 / 1024).toFixed(2)}MB → ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`
+      );
+
+      // Set compressed file and create preview
+      setPhoto(compressedFile);
+      const previewUrl = URL.createObjectURL(compressedFile);
+      setPhotoPreview(previewUrl);
+    } catch (error) {
+      console.error("Photo compression error:", error);
+      setUploadError(
+        error instanceof Error ? error.message : "Error al procesar la foto. Intenta de nuevo."
+      );
+    } finally {
+      setIsCompressing(false);
+    }
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handlePhotoSelect(file);
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    if (photoPreview) {
+      URL.revokeObjectURL(photoPreview);
+    }
+    setPhoto(null);
+    setPhotoPreview(null);
+    setUploadError("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,6 +205,23 @@ export default function AddReportForm({
 
     try {
       const reportId = id();
+      let photoId: string | null = null;
+
+      // Upload photo if present (already compressed)
+      if (photo) {
+        try {
+          const path = `reports/${reportId}/${Date.now()}.jpg`;
+          const { data } = await db.storage.uploadFile(path, photo, {
+            contentType: "image/jpeg",
+            contentDisposition: "inline",
+          });
+          photoId = data.id;
+          console.log("Photo uploaded successfully:", photoId);
+        } catch (uploadError) {
+          console.error("Photo upload failed:", uploadError);
+          setUploadError("No se pudo subir la foto, pero el reporte se guardará.");
+        }
+      }
 
       // Calculate SEGURIDAD score
       const seguridadScore = calculateSeguridadScore({
@@ -127,7 +233,8 @@ export default function AddReportForm({
         lightingRating,
       });
 
-      await db.transact([
+      // Create report and link photo if uploaded
+      const transactions = [
         db.tx.reports[reportId].update({
           category,
           description,
@@ -155,7 +262,14 @@ export default function AddReportForm({
           distanceFromRoad: 0,
           updatedAt: Date.now(),
         }),
-      ]);
+      ];
+
+      // Add photo link if upload succeeded
+      if (photoId) {
+        transactions.push(db.tx.reports[reportId].link({ photos: photoId }));
+      }
+
+      await db.transact(transactions);
 
       onSuccess();
       onClose();
@@ -366,6 +480,79 @@ export default function AddReportForm({
             </p>
           </div>
 
+          {/* Photo Upload Section */}
+          <div className="mb-6 p-4 border-2 border-dashed border-gray-300 rounded-lg">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              📸 Foto del Problema (opcional)
+            </label>
+
+            {!photo && !isCompressing && (
+              <div className="flex flex-col items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handlePhotoChange}
+                  className="hidden"
+                  id="photo-input"
+                />
+                <label
+                  htmlFor="photo-input"
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors cursor-pointer"
+                >
+                  + Tomar/Subir Foto
+                </label>
+                <p className="text-xs text-gray-500 text-center">
+                  ℹ️ La foto se optimizará para envío rápido
+                </p>
+              </div>
+            )}
+
+            {isCompressing && (
+              <div className="flex flex-col items-center gap-2 py-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <p className="text-sm text-gray-600">Procesando foto...</p>
+              </div>
+            )}
+
+            {photo && photoPreview && !isCompressing && (
+              <div className="flex flex-col gap-3">
+                <div className="relative">
+                  <img
+                    src={photoPreview}
+                    alt="Preview"
+                    className="w-full h-48 object-cover rounded-md"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <label
+                    htmlFor="photo-input"
+                    className="flex-1 px-3 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors cursor-pointer text-center text-sm"
+                  >
+                    Cambiar Foto
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleRemovePhoto}
+                    className="flex-1 px-3 py-2 border border-red-300 text-red-600 rounded-md hover:bg-red-50 transition-colors text-sm"
+                  >
+                    Quitar
+                  </button>
+                </div>
+                <p className="text-xs text-green-600 text-center">
+                  ✓ Foto lista para subir (~{(photo.size / 1024).toFixed(0)}KB)
+                </p>
+              </div>
+            )}
+
+            {uploadError && (
+              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-600">
+                {uploadError}
+              </div>
+            )}
+          </div>
+
           {/* SEGURIDAD Section */}
           <AccordionSection
             title="SEGURIDAD (Infraestructura)"
@@ -508,9 +695,13 @@ export default function AddReportForm({
             <button
               type="submit"
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isCompressing}
             >
-              {isSubmitting ? "Enviando..." : "Enviar Reporte"}
+              {isSubmitting
+                ? photo
+                  ? "Subiendo foto y reporte..."
+                  : "Enviando reporte..."
+                : "Enviar Reporte"}
             </button>
           </div>
         </form>
