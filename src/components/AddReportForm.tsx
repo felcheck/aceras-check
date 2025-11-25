@@ -495,7 +495,7 @@ export default function AddReportForm({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*,.jpg,.jpeg,.png,.heic,.heif,.webp"
+                  accept="image/*"
                   onChange={handlePhotoChange}
                   className="hidden"
                   id="photo-input"
