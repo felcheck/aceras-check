@@ -765,6 +765,7 @@ export default function WalkabilityDrawer({
   const [isCompressing, setIsCompressing] = useState(false);
   const [uploadError, setUploadError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPhotoDragging, setIsPhotoDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Internal state for 3-snap-point system
@@ -861,6 +862,34 @@ export default function WalkabilityDrawer({
 
   const handleOpenFilePicker = () => {
     fileInputRef.current?.click();
+  };
+
+  const handlePhotoDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsPhotoDragging(true);
+  };
+
+  const handlePhotoDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsPhotoDragging(false);
+  };
+
+  const handlePhotoDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsPhotoDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.type.startsWith("image/")) {
+        handlePhotoSelect(file);
+      } else {
+        setUploadError("Por favor arrastra una imagen válida");
+      }
+    }
   };
 
   const handleSubmit = async () => {
@@ -1148,7 +1177,14 @@ export default function WalkabilityDrawer({
                 />
 
                 {/* Photo Upload Section */}
-                <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
+                <div
+                  className={`mt-6 border-t border-gray-200 dark:border-gray-700 pt-4 transition-colors ${
+                    isPhotoDragging ? "bg-blue-50 dark:bg-blue-900/20" : ""
+                  }`}
+                  onDragOver={handlePhotoDragOver}
+                  onDragLeave={handlePhotoDragLeave}
+                  onDrop={handlePhotoDrop}
+                >
                   <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">
                     📸 Foto del Problema (opcional)
                   </h3>
@@ -1170,11 +1206,22 @@ export default function WalkabilityDrawer({
                       type="button"
                       onClick={handleOpenFilePicker}
                       disabled={isSubmitting}
-                      className="w-full border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg px-4 py-8 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors disabled:opacity-50"
+                      className={`w-full border-2 border-dashed rounded-lg px-4 py-8 text-center transition-colors disabled:opacity-50 ${
+                        isPhotoDragging
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
+                          : "border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500"
+                      }`}
                     >
                       <span className="text-4xl mb-2 block">📷</span>
-                      <span className="text-blue-600 dark:text-blue-400 font-medium">+ Tomar/Subir Foto</span>
+                      <span className="text-blue-600 dark:text-blue-400 font-medium">
+                        {isPhotoDragging ? "Suelta la imagen aquí" : "+ Tomar/Subir Foto"}
+                      </span>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {isPhotoDragging
+                          ? "Suelta para subir"
+                          : "Arrastra una foto aquí o haz clic para seleccionar"}
+                      </p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                         Max 10MB • Se comprimirá automáticamente
                       </p>
                     </button>

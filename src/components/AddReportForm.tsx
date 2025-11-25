@@ -56,6 +56,7 @@ export default function AddReportForm({
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
   const [uploadError, setUploadError] = useState<string>("");
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // SEGURIDAD fields
@@ -190,6 +191,34 @@ export default function AddReportForm({
 
   const handleOpenFilePicker = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.type.startsWith("image/")) {
+        handlePhotoSelect(file);
+      } else {
+        setUploadError("Por favor arrastra una imagen válida");
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -485,7 +514,16 @@ export default function AddReportForm({
           </div>
 
           {/* Photo Upload Section */}
-          <div className="mb-6 p-4 border-2 border-dashed border-gray-300 rounded-lg">
+          <div
+            className={`mb-6 p-4 border-2 border-dashed rounded-lg transition-colors ${
+              isDragging
+                ? "border-blue-500 bg-blue-50"
+                : "border-gray-300"
+            }`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
             <label className="block text-sm font-medium text-gray-700 mb-2">
               📸 Foto del Problema (opcional)
             </label>
@@ -507,7 +545,12 @@ export default function AddReportForm({
                   + Tomar/Subir Foto
                 </label>
                 <p className="text-xs text-gray-500 text-center">
-                  ℹ️ La foto se optimizará para envío rápido
+                  {isDragging
+                    ? "Suelta la imagen aquí"
+                    : "Arrastra una foto aquí o haz clic para seleccionar"}
+                </p>
+                <p className="text-xs text-gray-400 text-center">
+                  Max 10MB • Se comprimirá automáticamente
                 </p>
               </div>
             )}
