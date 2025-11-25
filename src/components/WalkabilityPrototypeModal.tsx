@@ -1156,7 +1156,7 @@ export default function WalkabilityDrawer({
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/jpeg,image/jpg,image/png,image/heic,image/heif,image/webp"
+                    accept="image/*,.jpg,.jpeg,.png,.heic,.heif,.webp"
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
