@@ -49,7 +49,7 @@ Add photo capture/upload section after the location display and before SEGURIDAD
 1. Add state for photo: `const [photo, setPhoto] = useState<File | null>(null);`
 2. Add state for upload errors: `const [uploadError, setUploadError] = useState<string>("");`
 3. Add state for compression progress: `const [isCompressing, setIsCompressing] = useState(false);`
-4. Create file input with `accept="image/*"` and `capture="environment"` for camera
+4. Create file input with `accept="image/*"` (capture attribute removed for universal camera/gallery compatibility)
 5. Implement single photo preview (large thumbnail with replace/remove button)
 6. Enforce constraints:
    - **Exactly 1 photo** (if photo exists, button shows "Cambiar Foto")
@@ -406,6 +406,7 @@ export interface PhotoUploadState {
 - **2025-11-25**: Plan created by Planner Agent
 - **2025-11-25**: Updated with compression research and 1-photo constraint
 - **2025-11-25**: ✅ IMPLEMENTATION COMPLETE - All phases implemented by Developer Agent
+- **2025-11-25**: 🔧 FIX - Removed `capture="environment"` attribute to enable gallery selection on mobile
 - **Phase 1**: ✅ Complete (Photo input UI)
 - **Phase 2**: ✅ Complete (Client-side compression)
 - **Phase 3**: ✅ Complete (InstantDB Storage upload)
@@ -433,7 +434,7 @@ export interface PhotoUploadState {
    - Console logging for compression metrics
    - Memory cleanup for object URLs via useEffect
 5. **UI Components**: Added photo upload section with:
-   - File input with `capture="environment"` for mobile camera
+   - File input with `accept="image/*"` (capture attribute removed for universal compatibility)
    - Loading spinner during compression
    - Large preview image display
    - Cambiar/Quitar buttons

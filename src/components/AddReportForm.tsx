@@ -492,7 +492,6 @@ export default function AddReportForm({
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"
-                  capture="environment"
                   onChange={handlePhotoChange}
                   className="hidden"
                   id="photo-input"
