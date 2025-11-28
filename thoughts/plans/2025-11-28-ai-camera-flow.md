@@ -457,3 +457,299 @@ Features:
 
 *Plan created: 2025-11-28*
 *Last updated: 2025-11-28*
+
+---
+
+## 13. Photo Upload/Capture UX Enhancement
+
+> **Added**: 2025-11-28
+> **Status**: Planning
+> **Goal**: Allow users to upload existing photos OR take new photos from the initial report flow
+
+### 13.1 Current State
+
+The existing photo section in `WalkabilityPrototypeModal.tsx` (lines 1190-1270) uses:
+```html
+<input type="file" accept="image/*" />
+```
+
+This already works cross-platform:
+- **iOS**: Shows action sheet with "Take Photo" and "Photo Library" options
+- **Android**: Shows chooser with camera and gallery apps
+- **Desktop**: Opens file picker (no camera access)
+
+**Current UX Issues**:
+1. Single button doesn't clearly communicate both options
+2. Desktop users can't use webcam at all
+3. No visual distinction between "take photo" vs "upload" intent
+4. The current react-webcam `CameraCapture.tsx` component is separate from the form flow
+
+---
+
+### 13.2 UX Pattern Options
+
+#### Option A: Single Smart Button (Recommended for Mobile-First)
+```
+┌─────────────────────────────────┐
+│  📷  Agregar Foto               │
+│  Toma o selecciona una imagen   │
+└─────────────────────────────────┘
+```
+
+**How it works**:
+- Mobile: Uses `<input type="file" accept="image/*">` → OS shows camera/gallery choice
+- Desktop: Opens file picker (standard behavior)
+
+**Pros**:
+- Minimal UI, leverages native OS patterns
+- Users already understand their OS's photo picker
+- No extra components needed
+
+**Cons**:
+- Desktop users can't use webcam
+- Less control over camera experience
+
+---
+
+#### Option B: Two Distinct Buttons (Best for Desktop+Mobile)
+```
+┌──────────────────┐  ┌──────────────────┐
+│  📸 Tomar Foto   │  │  📁 Subir Foto   │
+└──────────────────┘  └──────────────────┘
+```
+
+**How it works**:
+- "Tomar Foto":
+  - Mobile: `<input type="file" accept="image/*" capture="environment">` → opens camera directly
+  - Desktop: Opens react-webcam fullscreen component
+- "Subir Foto":
+  - All platforms: `<input type="file" accept="image/*">` → file picker
+
+**Pros**:
+- Clear intent for each action
+- Desktop webcam support
+- Consistent with existing `CameraCapture.tsx` component
+
+**Cons**:
+- More buttons = more cognitive load
+- Android `capture` attribute skips gallery entirely
+
+---
+
+#### Option C: Primary + Secondary Pattern (Balanced)
+```
+┌─────────────────────────────────┐
+│      📸  Tomar Foto             │  ← Primary (large)
+│      Usa la cámara trasera      │
+└─────────────────────────────────┘
+        O subir desde galería ↗      ← Secondary (text link)
+```
+
+**How it works**:
+- Primary button: Camera-first (react-webcam on desktop, `capture="environment"` on mobile)
+- Secondary link: Standard file picker for gallery/uploads
+
+**Pros**:
+- Emphasizes camera-first UX (matches app's purpose)
+- Clear hierarchy
+- Works well for field data collection apps
+
+**Cons**:
+- Android `capture` attribute can't be overridden to also show gallery
+
+---
+
+#### Option D: Adaptive Single Button + Dropdown (Power User Friendly)
+```
+┌─────────────────────────────────┬───┐
+│  📷  Agregar Foto               │ ▼ │
+└─────────────────────────────────┴───┘
+                    ┌─────────────────┐
+                    │ 📸 Tomar Foto   │
+                    │ 📁 Subir Foto   │
+                    └─────────────────┘
+```
+
+**How it works**:
+- Default tap: Opens native picker (mobile) or dropdown (desktop)
+- Dropdown expands options explicitly
+
+**Pros**:
+- Clean default, power users can choose
+- Works on all platforms
+
+**Cons**:
+- More complex implementation
+- Extra tap for explicit choice
+
+---
+
+### 13.3 Platform-Specific Behavior Matrix
+
+| Action | iOS Safari | Android Chrome | Desktop Chrome |
+|--------|------------|----------------|----------------|
+| `accept="image/*"` (no capture) | Shows "Take Photo" + "Photo Library" sheet | Shows app chooser (camera + gallery) | File picker only |
+| `accept="image/*" capture="environment"` | Opens camera directly (iOS 10.3+) | Opens camera directly (no gallery option) | File picker only (capture ignored) |
+| react-webcam | Works (requires HTTPS) | Works (requires HTTPS) | Works (requires HTTPS) |
+
+**Key Insight**:
+- iOS without `capture` attribute is ideal—gives both options natively
+- Android with `capture` forces camera-only
+- Desktop needs react-webcam for camera access
+
+---
+
+### 13.4 Recommended Implementation
+
+**Strategy: Adaptive UX based on platform detection**
+
+```typescript
+// Detect if user is on mobile
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+// Mobile: Use single input that shows native picker
+// Desktop: Show two buttons (webcam + file upload)
+```
+
+#### Mobile UI:
+```
+┌─────────────────────────────────┐
+│  📷  Agregar Foto               │
+│  Toca para tomar o seleccionar  │
+└─────────────────────────────────┘
+```
+→ Single `<input type="file" accept="image/*">` (no capture attribute)
+→ iOS/Android show their native picker with camera + gallery options
+
+#### Desktop UI:
+```
+┌──────────────────┐  ┌──────────────────┐
+│  📸 Usar Cámara  │  │  📁 Subir Archivo│
+└──────────────────┘  └──────────────────┘
+```
+→ "Usar Cámara" opens react-webcam fullscreen modal
+→ "Subir Archivo" opens file picker
+
+---
+
+### 13.5 Implementation Plan
+
+#### Files to Modify:
+1. **`src/components/WalkabilityPrototypeModal.tsx`**
+   - Add platform detection
+   - Create adaptive photo section UI
+   - Integrate with existing `CameraCapture.tsx` for desktop webcam
+
+2. **`src/components/CameraCapture.tsx`** (existing)
+   - Already handles fullscreen camera
+   - May need minor props adjustment to work inline vs fullscreen
+
+#### Code Changes:
+
+```typescript
+// Add to WalkabilityPrototypeModal.tsx
+
+// Platform detection
+const [isMobile, setIsMobile] = useState(false);
+const [showWebcam, setShowWebcam] = useState(false);
+
+useEffect(() => {
+  setIsMobile(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+}, []);
+
+// In the photo section JSX:
+{!photoPreview && !isCompressing && (
+  <>
+    {isMobile ? (
+      // Mobile: Single smart button
+      <button
+        type="button"
+        onClick={handleOpenFilePicker}
+        className="w-full border-2 border-dashed rounded-lg px-4 py-8 text-center"
+      >
+        <span className="text-4xl mb-2 block">📷</span>
+        <span className="text-blue-600 font-medium">Agregar Foto</span>
+        <p className="text-xs text-gray-500 mt-1">
+          Toca para tomar una foto o seleccionar de la galería
+        </p>
+      </button>
+    ) : (
+      // Desktop: Two distinct buttons
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={() => setShowWebcam(true)}
+          className="flex-1 border-2 border-dashed rounded-lg px-4 py-6 text-center hover:border-blue-400"
+        >
+          <span className="text-3xl mb-1 block">📸</span>
+          <span className="text-blue-600 font-medium text-sm">Usar Cámara</span>
+        </button>
+        <button
+          type="button"
+          onClick={handleOpenFilePicker}
+          className="flex-1 border-2 border-dashed rounded-lg px-4 py-6 text-center hover:border-blue-400"
+        >
+          <span className="text-3xl mb-1 block">📁</span>
+          <span className="text-blue-600 font-medium text-sm">Subir Archivo</span>
+        </button>
+      </div>
+    )}
+    {/* Hidden file input */}
+    <input
+      ref={fileInputRef}
+      type="file"
+      accept="image/*"
+      className="hidden"
+      onChange={handleFileChange}
+    />
+  </>
+)}
+
+{/* Desktop webcam modal */}
+{showWebcam && (
+  <CameraCapture
+    onCapture={(imageData) => {
+      // Convert base64 to File and process
+      handleCapturedImage(imageData);
+      setShowWebcam(false);
+    }}
+    onClose={() => setShowWebcam(false)}
+  />
+)}
+```
+
+---
+
+### 13.6 Verification Checklist
+
+#### Mobile Testing:
+- [ ] iOS Safari: Tap shows "Take Photo" + "Photo Library" options
+- [ ] Android Chrome: Tap shows app chooser with camera + gallery
+- [ ] Photo taken from camera compresses correctly
+- [ ] Photo selected from gallery compresses correctly
+- [ ] Large photos (>10MB) show error message
+
+#### Desktop Testing:
+- [ ] Two buttons visible (Usar Cámara / Subir Archivo)
+- [ ] "Usar Cámara" opens webcam modal
+- [ ] Webcam capture works (HTTPS/localhost required)
+- [ ] "Subir Archivo" opens file picker
+- [ ] Drag-and-drop still works in the area
+
+#### Cross-Platform:
+- [ ] Photo preview displays correctly after capture/upload
+- [ ] "Cambiar Foto" and "Quitar" buttons work
+- [ ] Photo uploads to InstantDB correctly
+- [ ] AI analysis receives the photo (if AI flow is active)
+
+---
+
+### 13.7 Sources & References
+
+- [Uploadcare: File Uploader UX Best Practices](https://uploadcare.com/blog/file-uploader-ux-best-practices/)
+- [MDN: HTML capture attribute](https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes/capture)
+- [Stack Overflow: How to allow file picker AND camera capture on Android](https://gist.github.com/danawoodman/4788404bc620d5392d111dba98c73873)
+- [Stack Overflow: Correct way to use input capture on mobile](https://stackoverflow.com/questions/51272463/correct-way-to-use-input-type-file-capture-on-mobile-devices)
+- [freeCodeCamp: How to use input element to access camera on mobile](https://www.freecodecamp.org/news/how-to-use-input-element-to-access-camera-on-mobile/)
+- [AddPipe: Correct Syntax for HTML Media Capture](https://blog.addpipe.com/correct-syntax-html-media-capture/)
+- [SimiCart: How to Access Camera in a PWA](https://simicart.com/blog/pwa-camera-access/)

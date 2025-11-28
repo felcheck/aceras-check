@@ -15,6 +15,7 @@ interface WalkabilityPrototypeModalProps {
   onExpand: () => void;
   onClose: () => void;
   capturedImage?: string | null;
+  onPhotoSelected?: (imageBase64: string) => void; // For file uploads to go through AI flow
 }
 
 const UTILIDAD_OPTIONS = [
@@ -753,6 +754,7 @@ export default function WalkabilityDrawer({
   onExpand,
   onClose,
   capturedImage,
+  onPhotoSelected,
 }: WalkabilityPrototypeModalProps) {
   const { state, scores, updateBucket } = useWalkabilityState();
   const [openBuckets, setOpenBuckets] = useState<Record<BucketId, boolean>>({
@@ -1189,17 +1191,23 @@ export default function WalkabilityDrawer({
                 </div>
               ) : isMobile ? (
                 // Mobile: Single button that opens native picker (camera + gallery)
+                // When photo is selected, convert to base64 and pass to parent for AI flow
                 <>
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const file = e.target.files?.[0];
-                      if (file) {
-                        handlePhotoSelect(file);
-                        setDrawerState('expanded');
+                      if (file && onPhotoSelected) {
+                        // Convert file to base64 and pass to parent for AI flow
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          const base64 = reader.result as string;
+                          onPhotoSelected(base64);
+                        };
+                        reader.readAsDataURL(file);
                       }
                     }}
                   />
@@ -1216,17 +1224,23 @@ export default function WalkabilityDrawer({
                 </>
               ) : (
                 // Desktop: Two distinct buttons
+                // Both options go through AI flow via onPhotoSelected
                 <>
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const file = e.target.files?.[0];
-                      if (file) {
-                        handlePhotoSelect(file);
-                        setDrawerState('expanded');
+                      if (file && onPhotoSelected) {
+                        // Convert file to base64 and pass to parent for AI flow
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          const base64 = reader.result as string;
+                          onPhotoSelected(base64);
+                        };
+                        reader.readAsDataURL(file);
                       }
                     }}
                   />

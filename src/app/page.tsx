@@ -299,6 +299,16 @@ function App() {
             onExpand={handleStartCamera}
             onClose={handleCloseAll}
             capturedImage={capturedImage}
+            onPhotoSelected={(imageBase64) => {
+              // When photo is selected via file picker, go to quality check
+              // Same flow as camera capture
+              if (!user) {
+                setShowAuthModal(true);
+                return;
+              }
+              setCapturedImage(imageBase64);
+              setFlowState("quality-check");
+            }}
           />
         )}
       </div>
