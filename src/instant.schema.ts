@@ -64,6 +64,14 @@ const _schema = i.schema({
       status: i.string().indexed().optional(), // pending, verified, resolved
       verified: i.boolean().optional(),
 
+      // AI Analysis Tracking
+      aiGenerated: i.boolean().optional(), // Was this report AI-drafted?
+      aiConfidence: i.number().optional(), // Overall confidence 0-1
+      aiRawResponse: i.string().optional(), // Full AI response JSON for evals
+      userModified: i.boolean().optional(), // Did user change AI draft?
+      aiModel: i.string().optional(), // e.g., "gpt-4o-mini"
+      aiProcessedAt: i.number().optional(), // Timestamp of AI analysis
+
       // Metadata
       createdAt: i.number().indexed(),
       updatedAt: i.number().optional(),
