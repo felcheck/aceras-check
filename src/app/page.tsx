@@ -3,11 +3,15 @@
 import React, { useState } from "react";
 import dynamic from "next/dynamic";
 import { db } from "@/lib/db";
+import { id } from "@instantdb/react";
 import Header from "@/components/Header";
 import WalkabilityPrototypeModal from "@/components/WalkabilityPrototypeModal";
 import CameraCapture from "@/components/CameraCapture";
 import PhotoQualityCheck from "@/components/PhotoQualityCheck";
+import AIDraftReview from "@/components/AIDraftReview";
+import AIAnalyzingScreen from "@/components/AIAnalyzingScreen";
 import { SelectedLocation } from "@/types/location";
+import { SidewalkAnalysis } from "@/app/api/analyze-sidewalk/route";
 
 // Flow states for the camera-first assessment
 type FlowState =
@@ -35,6 +39,8 @@ function App() {
   const [showReportForm, setShowReportForm] = useState(false);
   const [flowState, setFlowState] = useState<FlowState>("map");
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<SidewalkAnalysis | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   const handleLocationSelect = (location: SelectedLocation) => {
     setSelectedLocation(location);
@@ -57,14 +63,117 @@ function App() {
 
   const handleRetakePhoto = () => {
     setCapturedImage(null);
+    setAiAnalysis(null);
+    setAnalysisError(null);
     setFlowState("camera");
   };
 
-  const handleQualityConfirmed = () => {
-    // Phase 2 will add AI analysis here
-    // For now, go directly to the manual form with the photo
+  const handleQualityConfirmed = async () => {
+    if (!capturedImage) return;
+
+    // Start AI analysis
+    setFlowState("analyzing");
+    setAnalysisError(null);
+
+    try {
+      const response = await fetch("/api/analyze-sidewalk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: capturedImage }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to analyze image");
+      }
+
+      setAiAnalysis(data.analysis);
+      setFlowState("review");
+    } catch (error) {
+      console.error("Analysis error:", error);
+      setAnalysisError(
+        error instanceof Error ? error.message : "Error al analizar la imagen"
+      );
+    }
+  };
+
+  const handleRetryAnalysis = () => {
+    handleQualityConfirmed();
+  };
+
+  const handleCancelAnalysis = () => {
+    setFlowState("quality-check");
+    setAnalysisError(null);
+  };
+
+  const handleReviewSubmit = async (
+    analysis: SidewalkAnalysis,
+    userModified: boolean
+  ) => {
+    if (!selectedLocation || !capturedImage) return;
+
+    setFlowState("submitting");
+
+    try {
+      // Create report in InstantDB
+      const reportId = id();
+      const photoId = id();
+
+      await db.transact([
+        db.tx.reports[reportId].update({
+          lat: selectedLocation.lat,
+          lng: selectedLocation.lng,
+          address: selectedLocation.addressLabel || "",
+          roadName: selectedLocation.roadName || null,
+          // AI analysis fields
+          hasSidewalk: analysis.hasSidewalk,
+          widthRating: analysis.widthRating,
+          conditionRating: analysis.conditionRating,
+          safetyRating: analysis.safetyRating,
+          accessibilityRating: analysis.accessibilityRating,
+          description: analysis.description,
+          // AI tracking
+          aiGenerated: true,
+          aiConfidence: analysis.confidence,
+          aiModel: "gpt-4o-mini",
+          userModified: userModified,
+          aiProcessedAt: Date.now(),
+          aiRawResponse: JSON.stringify(analysis),
+          // Computed scores (simplified)
+          seguridadScore: analysis.safetyRating * 20,
+          totalScore: Math.round(
+            (analysis.conditionRating +
+              analysis.safetyRating +
+              analysis.accessibilityRating +
+              analysis.widthRating) *
+              5
+          ),
+          // Meta
+          status: "pending",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        }),
+        db.tx.$files[photoId].update({
+          url: capturedImage,
+          path: `reports/${reportId}/${photoId}.jpg`,
+        }),
+        db.tx.reports[reportId].link({ photos: photoId }),
+      ]);
+
+      // Success - close everything
+      handleCloseAll();
+    } catch (error) {
+      console.error("Submit error:", error);
+      setAnalysisError("Error al guardar el reporte");
+      setFlowState("review");
+    }
+  };
+
+  const handleReviewClose = () => {
     setFlowState("map");
-    setShowReportForm(true);
+    setCapturedImage(null);
+    setAiAnalysis(null);
   };
 
   const handleCloseAll = () => {
@@ -72,6 +181,8 @@ function App() {
     setSelectedLocation(null);
     setFlowState("map");
     setCapturedImage(null);
+    setAiAnalysis(null);
+    setAnalysisError(null);
   };
 
   const { peers } = db.rooms.usePresence(room);
@@ -144,6 +255,39 @@ function App() {
           onRetake={handleRetakePhoto}
           onContinue={handleQualityConfirmed}
         />
+      )}
+
+      {/* AI Analyzing Screen */}
+      {flowState === "analyzing" && (
+        <AIAnalyzingScreen
+          onCancel={handleCancelAnalysis}
+          error={analysisError}
+          onRetry={handleRetryAnalysis}
+        />
+      )}
+
+      {/* AI Draft Review Screen */}
+      {flowState === "review" && capturedImage && aiAnalysis && (
+        <AIDraftReview
+          imageSrc={capturedImage}
+          analysis={aiAnalysis}
+          onSubmit={handleReviewSubmit}
+          onRetake={handleRetakePhoto}
+          onClose={handleReviewClose}
+        />
+      )}
+
+      {/* Submitting overlay */}
+      {flowState === "submitting" && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center"
+          style={{ zIndex: 9999 }}
+        >
+          <div className="text-center text-white">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white mx-auto mb-4" />
+            <p>Guardando reporte...</p>
+          </div>
+        </div>
       )}
     </>
   );
