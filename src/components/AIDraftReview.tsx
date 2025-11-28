@@ -22,9 +22,13 @@ export default function AIDraftReview({
   const [mounted, setMounted] = useState(false);
   const [editedAnalysis, setEditedAnalysis] = useState<SidewalkAnalysis>(analysis);
   const [isModified, setIsModified] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    return () => {
+      setMounted(false);
+    };
   }, []);
 
   const handleFieldChange = <K extends keyof SidewalkAnalysis>(
@@ -36,6 +40,8 @@ export default function AIDraftReview({
   };
 
   const handleSubmit = () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     onSubmit(editedAnalysis, isModified);
   };
 
@@ -299,9 +305,14 @@ export default function AIDraftReview({
           </button>
           <button
             onClick={handleSubmit}
-            className="flex-1 py-4 rounded-xl font-medium bg-blue-500 text-white"
+            disabled={isSubmitting}
+            className={`flex-1 py-4 rounded-xl font-medium ${
+              isSubmitting
+                ? "bg-blue-400 text-white/80 cursor-not-allowed"
+                : "bg-blue-500 text-white"
+            }`}
           >
-            Confirmar y Enviar
+            {isSubmitting ? "Enviando..." : "Confirmar y Enviar"}
           </button>
         </div>
         {isModified && (

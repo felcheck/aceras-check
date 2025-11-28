@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import dynamic from "next/dynamic";
+import imageCompression from "browser-image-compression";
 import { db } from "@/lib/db";
 import { id } from "@instantdb/react";
 import Header from "@/components/Header";
@@ -131,10 +132,8 @@ function App() {
     try {
       // Create report in InstantDB
       const reportId = id();
-      const photoId = id();
 
-      console.log("Submitting report:", { reportId, photoId, userId: user.id, lat: selectedLocation.lat, lng: selectedLocation.lng });
-      console.log("Image size (chars):", capturedImage.length);
+      console.log("Submitting report:", { reportId, userId: user.id, lat: selectedLocation.lat, lng: selectedLocation.lng });
 
       // First create the report with author link (without the large photo data)
       await db.transact([
@@ -174,21 +173,50 @@ function App() {
         db.tx.reports[reportId].link({ author: user.id }),
       ]);
 
-      console.log("Report created, now adding photo...");
+      console.log("Report created, now uploading photo...");
 
-      // Then add the photo in a separate transaction
+      // Convert base64 data URL to File object
+      const base64Response = await fetch(capturedImage);
+      const blob = await base64Response.blob();
+      const originalFile = new File([blob], `photo.jpg`, { type: "image/jpeg" });
+
+      console.log(`Original photo size: ${(originalFile.size / 1024 / 1024).toFixed(2)}MB`);
+
+      // Compress the image for faster upload (matching WalkabilityPrototypeModal config)
+      const compressionOptions = {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+        fileType: "image/jpeg" as const,
+        initialQuality: 0.85,
+      };
+
+      const compressedFile = await imageCompression(originalFile, compressionOptions);
+      console.log(`Compressed photo size: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+
+      // Upload using InstantDB Storage API
+      const photoPath = `reports/${reportId}/${Date.now()}.jpg`;
+      const { data: uploadedFile } = await db.storage.uploadFile(photoPath, compressedFile, {
+        contentType: "image/jpeg",
+        contentDisposition: "inline",
+      });
+
+      console.log("Photo uploaded:", uploadedFile.id);
+
+      // Link the uploaded file to the report
       await db.transact([
-        db.tx.$files[photoId].update({
-          url: capturedImage,
-          path: `reports/${reportId}/${photoId}.jpg`,
-        }),
-        db.tx.reports[reportId].link({ photos: photoId }),
+        db.tx.reports[reportId].link({ photos: uploadedFile.id }),
       ]);
 
       console.log("Report submitted successfully:", reportId);
 
       // Success - close everything and show toast
-      handleCloseAll();
+      setFlowState("map");
+      setShowReportForm(false);
+      setSelectedLocation(null);
+      setCapturedImage(null);
+      setAiAnalysis(null);
+      setAnalysisError(null);
       setShowSuccessToast(true);
       setTimeout(() => setShowSuccessToast(false), 3000);
     } catch (error) {
@@ -304,6 +332,7 @@ function App() {
       {/* AI Draft Review Screen */}
       {flowState === "review" && capturedImage && aiAnalysis && (
         <AIDraftReview
+          key="ai-draft-review"
           imageSrc={capturedImage}
           analysis={aiAnalysis}
           onSubmit={handleReviewSubmit}
@@ -316,7 +345,7 @@ function App() {
       {flowState === "submitting" && (
         <div
           className="fixed inset-0 bg-black/80 flex items-center justify-center"
-          style={{ zIndex: 9999 }}
+          style={{ zIndex: 10001 }}
         >
           <div className="text-center text-white">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white mx-auto mb-4" />
