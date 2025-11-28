@@ -34,24 +34,13 @@ export function useAutoGeolocation() {
       return;
     }
 
-    // First time or prompt status - show Spanish dialog and request
+    // First time - request geolocation directly
+    // The browser will show its own permission dialog
+    // (window.confirm doesn't work well on mobile, especially iOS Safari)
     if (!storedPermission || storedPermission === 'prompt') {
       // Mark as requested immediately to prevent double-prompt
       localStorage.setItem('geolocation-permission', 'requesting');
-
-      // Show a confirmation dialog in Spanish before requesting geolocation
-      const userWantsToShare = window.confirm(
-        '¿Permitir que Aceras Check acceda a tu ubicación?\n\n' +
-        'Esto nos ayudará a centrar el mapa en tu área para que puedas reportar problemas cercanos más fácilmente.'
-      );
-
-      if (userWantsToShare) {
-        getCurrentPosition();
-      } else {
-        // User declined our dialog
-        localStorage.setItem('geolocation-permission', 'denied');
-        setState(prev => ({ ...prev, hasRequested: true, permissionStatus: 'denied' }));
-      }
+      getCurrentPosition();
     }
   }, []);
 
