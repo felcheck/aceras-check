@@ -402,6 +402,17 @@ function App() {
           <span className="font-medium">Reporte guardado exitosamente</span>
         </div>
       )}
+
+      {/* DEBUG: Clear localStorage button - REMOVE AFTER TESTING */}
+      <button
+        onClick={() => {
+          localStorage.clear();
+          alert('localStorage cleared! Reload the page.');
+        }}
+        className="fixed top-20 right-4 bg-red-500 text-white text-xs px-2 py-1 rounded z-[9999]"
+      >
+        Clear Storage
+      </button>
     </>
   );
 }
