@@ -5,6 +5,7 @@ import { motion, useMotionValue, useTransform, PanInfo, animate } from "framer-m
 import { SelectedLocation } from "@/types/location";
 import imageCompression from "browser-image-compression";
 import { db } from "@/lib/db";
+import CameraCapture from "./CameraCapture";
 
 type BucketId = "utilidad" | "seguridad" | "comodidad" | "interesante";
 
@@ -770,6 +771,11 @@ export default function WalkabilityDrawer({
   const [isPhotoDragging, setIsPhotoDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Platform detection and webcam state
+  // Start with null to avoid hydration mismatch, then detect on client
+  const [isMobile, setIsMobile] = useState<boolean | null>(null);
+  const [showWebcam, setShowWebcam] = useState(false);
+
   // Internal state for 3-snap-point system
   const [drawerState, setDrawerState] = useState<DrawerState>('collapsed');
 
@@ -813,6 +819,32 @@ export default function WalkabilityDrawer({
       }
     };
   }, [photoPreview]);
+
+  // Platform detection for adaptive photo UI
+  useEffect(() => {
+    setIsMobile(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+  }, []);
+
+  // Handle webcam capture (converts base64 to File for processing)
+  const handleWebcamCapture = async (imageSrc: string) => {
+    setShowWebcam(false);
+    setIsCompressing(true);
+    setUploadError("");
+
+    try {
+      // Convert base64 to blob
+      const response = await fetch(imageSrc);
+      const blob = await response.blob();
+      const file = new File([blob], `webcam-${Date.now()}.jpg`, { type: "image/jpeg" });
+
+      // Use existing compression handler
+      await handlePhotoSelect(file);
+    } catch (error) {
+      console.error("Webcam capture error:", error);
+      setUploadError("Error al procesar la foto de la cámara. Intenta de nuevo.");
+      setIsCompressing(false);
+    }
+  };
 
   // Photo compression handler
   const handlePhotoSelect = async (file: File) => {
@@ -1133,7 +1165,7 @@ export default function WalkabilityDrawer({
             </div>
 
           {drawerState === 'collapsed' ? (
-            // Collapsed: Location + CTA Button (compact to avoid blocking geolocation button)
+            // Collapsed: Location + Photo Options (camera or upload)
             <div
               className="px-6 pt-1"
               style={{ paddingBottom: 'max(1rem, calc(1rem + env(safe-area-inset-bottom)))' }}
@@ -1149,18 +1181,78 @@ export default function WalkabilityDrawer({
                 </div>
               </div>
 
-              {/* Action button */}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setDrawerState('expanded');
-                    onExpand();
-                  }}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold shadow-md transition-colors"
-                >
-                  Chequear Acera Aquí
-                </button>
-              </div>
+              {/* Photo options - adaptive based on platform */}
+              {isMobile === null ? (
+                // Loading state while detecting platform
+                <div className="flex gap-3">
+                  <div className="flex-1 bg-gray-200 dark:bg-gray-700 animate-pulse h-12 rounded-lg" />
+                </div>
+              ) : isMobile ? (
+                // Mobile: Single button that opens native picker (camera + gallery)
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        handlePhotoSelect(file);
+                        setDrawerState('expanded');
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={handleOpenFilePicker}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold shadow-md transition-colors flex items-center justify-center gap-2"
+                  >
+                    <span>📷</span>
+                    <span>Agregar Foto de la Acera</span>
+                  </button>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-center">
+                    Toma una foto o selecciona de la galería
+                  </p>
+                </>
+              ) : (
+                // Desktop: Two distinct buttons
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        handlePhotoSelect(file);
+                        setDrawerState('expanded');
+                      }
+                    }}
+                  />
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        onExpand(); // This triggers camera in page.tsx
+                      }}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-semibold shadow-md transition-colors flex items-center justify-center gap-2"
+                    >
+                      <span>📸</span>
+                      <span>Tomar Foto</span>
+                    </button>
+                    <button
+                      onClick={handleOpenFilePicker}
+                      className="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 px-4 py-3 rounded-lg font-semibold shadow-md transition-colors flex items-center justify-center gap-2"
+                    >
+                      <span>📁</span>
+                      <span>Subir Foto</span>
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-center">
+                    Usa tu cámara o sube una imagen existente
+                  </p>
+                </>
+              )}
             </div>
           ) : (
             // Expanded: Full form
@@ -1211,30 +1303,65 @@ export default function WalkabilityDrawer({
                     disabled={isCompressing || isSubmitting}
                   />
 
-                  {!photoPreview && !isCompressing && (
-                    <button
-                      type="button"
-                      onClick={handleOpenFilePicker}
-                      disabled={isSubmitting}
-                      className={`w-full border-2 border-dashed rounded-lg px-4 py-8 text-center transition-colors disabled:opacity-50 ${
-                        isPhotoDragging
-                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
-                          : "border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500"
-                      }`}
-                    >
-                      <span className="text-4xl mb-2 block">📷</span>
-                      <span className="text-blue-600 dark:text-blue-400 font-medium">
-                        {isPhotoDragging ? "Suelta la imagen aquí" : "+ Tomar/Subir Foto"}
-                      </span>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        {isPhotoDragging
-                          ? "Suelta para subir"
-                          : "Arrastra una foto aquí o haz clic para seleccionar"}
-                      </p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                        Max 10MB • Se comprimirá automáticamente
-                      </p>
-                    </button>
+                  {!photoPreview && !isCompressing && isMobile !== null && (
+                    <>
+                      {isMobile ? (
+                        /* Mobile: Single smart button - OS handles camera vs gallery choice */
+                        <button
+                          type="button"
+                          onClick={handleOpenFilePicker}
+                          disabled={isSubmitting}
+                          className={`w-full border-2 border-dashed rounded-lg px-4 py-8 text-center transition-colors disabled:opacity-50 ${
+                            isPhotoDragging
+                              ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
+                              : "border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500"
+                          }`}
+                        >
+                          <span className="text-4xl mb-2 block">📷</span>
+                          <span className="text-blue-600 dark:text-blue-400 font-medium">
+                            {isPhotoDragging ? "Suelta la imagen aquí" : "Agregar Foto"}
+                          </span>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {isPhotoDragging
+                              ? "Suelta para subir"
+                              : "Toca para tomar una foto o seleccionar de la galería"}
+                          </p>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                            Max 10MB • Se comprimirá automáticamente
+                          </p>
+                        </button>
+                      ) : (
+                        /* Desktop: Two distinct buttons for camera vs file upload */
+                        <div className="flex gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setShowWebcam(true)}
+                            disabled={isSubmitting}
+                            className="flex-1 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg px-4 py-6 text-center transition-colors hover:border-blue-400 dark:hover:border-blue-500 disabled:opacity-50"
+                          >
+                            <span className="text-3xl mb-1 block">📸</span>
+                            <span className="text-blue-600 dark:text-blue-400 font-medium text-sm">
+                              Usar Cámara
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleOpenFilePicker}
+                            disabled={isSubmitting}
+                            className={`flex-1 border-2 border-dashed rounded-lg px-4 py-6 text-center transition-colors disabled:opacity-50 ${
+                              isPhotoDragging
+                                ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
+                                : "border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500"
+                            }`}
+                          >
+                            <span className="text-3xl mb-1 block">📁</span>
+                            <span className="text-blue-600 dark:text-blue-400 font-medium text-sm">
+                              {isPhotoDragging ? "Suelta aquí" : "Subir Archivo"}
+                            </span>
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {isCompressing && (
@@ -1296,6 +1423,14 @@ export default function WalkabilityDrawer({
           )}
         </motion.div>
       </div>
+
+      {/* Desktop Webcam Modal */}
+      {showWebcam && (
+        <CameraCapture
+          onCapture={handleWebcamCapture}
+          onClose={() => setShowWebcam(false)}
+        />
+      )}
     </>
   );
 }
