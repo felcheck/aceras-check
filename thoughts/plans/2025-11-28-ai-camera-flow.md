@@ -1,9 +1,10 @@
 # AI-Powered Camera-First Sidewalk Assessment Flow
 
 > **Plan ID**: 2025-11-28-ai-camera-flow
-> **Branch**: `final-project-scope`
-> **Status**: Phase 1 Complete
+> **Branch**: `main` (merged)
+> **Status**: All Phases Complete - In Production
 > **Author**: Planner Agent
+> **Last Updated**: 2025-11-28
 
 ---
 
@@ -66,12 +67,15 @@ reports: {
 ### In Scope (This Iteration)
 - [x] Camera capture component with custom overlay
 - [x] Photo quality self-assessment screen
-- [x] AI vision analysis integration (Gemini 2.0 Flash)
+- [x] AI vision analysis integration (GPT-4o-mini - changed from Gemini)
 - [x] Draft review/edit screen with AI suggestions
 - [x] Schema updates for AI tracking fields
 - [x] API route for AI analysis (server-side for API key security)
 - [x] Error handling + retry flow
 - [x] Mobile-first responsive design
+- [x] **Email magic link authentication** (added 2025-11-28)
+- [x] **User reports linked to author** (added 2025-11-28)
+- [x] **My Reports view** (added 2025-11-28)
 
 ### Out of Scope (Future Iterations)
 - AI-based blur detection (keep as user self-assessment)

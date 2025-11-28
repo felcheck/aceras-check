@@ -45,6 +45,7 @@ function App() {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showMyReports, setShowMyReports] = useState(false);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
 
   // Auth state
   const { isLoading: authLoading, user, error: authError } = db.useAuth();
@@ -173,8 +174,10 @@ function App() {
         db.tx.reports[reportId].link({ photos: photoId, author: user.id }),
       ]);
 
-      // Success - close everything
+      // Success - close everything and show toast
       handleCloseAll();
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
     } catch (error) {
       console.error("Submit error:", error);
       setAnalysisError("Error al guardar el reporte");
@@ -332,6 +335,19 @@ function App() {
             // Could pan to the report location on map
           }}
         />
+      )}
+
+      {/* Success Toast */}
+      {showSuccessToast && (
+        <div
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-green-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 animate-fade-in"
+          style={{ zIndex: 10000 }}
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <span className="font-medium">Reporte guardado exitosamente</span>
+        </div>
       )}
     </>
   );
