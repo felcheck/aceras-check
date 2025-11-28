@@ -10,6 +10,8 @@ import CameraCapture from "@/components/CameraCapture";
 import PhotoQualityCheck from "@/components/PhotoQualityCheck";
 import AIDraftReview from "@/components/AIDraftReview";
 import AIAnalyzingScreen from "@/components/AIAnalyzingScreen";
+import AuthModal from "@/components/AuthModal";
+import MyReports from "@/components/MyReports";
 import { SelectedLocation } from "@/types/location";
 import { SidewalkAnalysis } from "@/app/api/analyze-sidewalk/route";
 
@@ -41,6 +43,11 @@ function App() {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<SidewalkAnalysis | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showMyReports, setShowMyReports] = useState(false);
+
+  // Auth state
+  const { isLoading: authLoading, user, error: authError } = db.useAuth();
 
   const handleLocationSelect = (location: SelectedLocation) => {
     setSelectedLocation(location);
@@ -48,6 +55,11 @@ function App() {
 
   // Camera flow handlers
   const handleStartCamera = () => {
+    // Require auth before starting camera flow
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
     setFlowState("camera");
   };
 
@@ -111,7 +123,7 @@ function App() {
     analysis: SidewalkAnalysis,
     userModified: boolean
   ) => {
-    if (!selectedLocation || !capturedImage) return;
+    if (!selectedLocation || !capturedImage || !user) return;
 
     setFlowState("submitting");
 
@@ -158,7 +170,7 @@ function App() {
           url: capturedImage,
           path: `reports/${reportId}/${photoId}.jpg`,
         }),
-        db.tx.reports[reportId].link({ photos: photoId }),
+        db.tx.reports[reportId].link({ photos: photoId, author: user.id }),
       ]);
 
       // Success - close everything
@@ -217,7 +229,13 @@ function App() {
     <>
       <div className="h-dvh w-full flex flex-col">
         {/* Header */}
-        <Header numUsers={numUsers} />
+        <Header
+          numUsers={numUsers}
+          user={user}
+          onLoginClick={() => setShowAuthModal(true)}
+          onLogoutClick={() => db.auth.signOut()}
+          onMyReportsClick={() => setShowMyReports(true)}
+        />
 
         {/* Main Content */}
         <div className="flex-1 relative bg-gray-50 dark:bg-gray-900">
@@ -288,6 +306,32 @@ function App() {
             <p>Guardando reporte...</p>
           </div>
         </div>
+      )}
+
+      {/* Auth Modal */}
+      {showAuthModal && (
+        <AuthModal
+          onClose={() => setShowAuthModal(false)}
+          onSuccess={() => {
+            setShowAuthModal(false);
+            // If user was trying to start camera, continue the flow
+            if (selectedLocation) {
+              setFlowState("camera");
+            }
+          }}
+        />
+      )}
+
+      {/* My Reports */}
+      {showMyReports && user && (
+        <MyReports
+          userId={user.id}
+          onClose={() => setShowMyReports(false)}
+          onSelectReport={(lat, lng) => {
+            setShowMyReports(false);
+            // Could pan to the report location on map
+          }}
+        />
       )}
     </>
   );

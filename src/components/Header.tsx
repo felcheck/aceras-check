@@ -2,11 +2,26 @@
 
 import React, { useState, useEffect } from "react";
 
-interface HeaderProps {
-  numUsers: number;
+interface User {
+  id: string;
+  email?: string | null;
 }
 
-export default function Header({ numUsers }: HeaderProps) {
+interface HeaderProps {
+  numUsers: number;
+  user: User | null | undefined;
+  onLoginClick: () => void;
+  onLogoutClick: () => void;
+  onMyReportsClick: () => void;
+}
+
+export default function Header({
+  numUsers,
+  user,
+  onLoginClick,
+  onLogoutClick,
+  onMyReportsClick,
+}: HeaderProps) {
   const [isDark, setIsDark] = useState(false);
 
   // Initialize dark mode from system preference and localStorage
@@ -50,8 +65,8 @@ export default function Header({ numUsers }: HeaderProps) {
           </p>
         </div>
 
-        {/* Right section: Toggle and User Count */}
-        <div className="flex items-center gap-3">
+        {/* Right section: Auth and Actions */}
+        <div className="flex items-center gap-2">
           {/* Dark mode toggle */}
           <button
             onClick={toggleDarkMode}
@@ -59,7 +74,6 @@ export default function Header({ numUsers }: HeaderProps) {
             aria-label="Toggle dark mode"
           >
             {isDark ? (
-              // Sun icon for light mode
               <svg
                 className="w-5 h-5 text-gray-600 dark:text-gray-300"
                 fill="none"
@@ -74,7 +88,6 @@ export default function Header({ numUsers }: HeaderProps) {
                 />
               </svg>
             ) : (
-              // Moon icon for dark mode
               <svg
                 className="w-5 h-5 text-gray-600 dark:text-gray-300"
                 fill="none"
@@ -91,10 +104,61 @@ export default function Header({ numUsers }: HeaderProps) {
             )}
           </button>
 
-          {/* User count badge */}
-          <div className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-full text-sm font-medium">
-            {numUsers} user{numUsers !== 1 ? "s" : ""}
-          </div>
+          {/* Auth button */}
+          {user ? (
+            <>
+              {/* My Reports button */}
+              <button
+                onClick={onMyReportsClick}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                aria-label="Mis reportes"
+              >
+                <svg
+                  className="w-5 h-5 text-gray-600 dark:text-gray-300"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  />
+                </svg>
+              </button>
+              {/* User menu */}
+              <button
+                onClick={onLogoutClick}
+                className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                title={user.email || "Usuario"}
+              >
+                <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-medium">
+                  {user.email ? user.email[0].toUpperCase() : "U"}
+                </div>
+                <svg
+                  className="w-4 h-4 text-gray-500 dark:text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                  />
+                </svg>
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={onLoginClick}
+              className="px-4 py-1.5 bg-blue-500 text-white rounded-full text-sm font-medium hover:bg-blue-600 transition-colors"
+            >
+              Iniciar sesión
+            </button>
+          )}
         </div>
       </header>
     </div>
