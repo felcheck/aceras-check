@@ -133,6 +133,10 @@ function App() {
       const reportId = id();
       const photoId = id();
 
+      console.log("Submitting report:", { reportId, photoId, userId: user.id, lat: selectedLocation.lat, lng: selectedLocation.lng });
+      console.log("Image size (chars):", capturedImage.length);
+
+      // First create the report with author link (without the large photo data)
       await db.transact([
         db.tx.reports[reportId].update({
           lat: selectedLocation.lat,
@@ -167,12 +171,21 @@ function App() {
           createdAt: Date.now(),
           updatedAt: Date.now(),
         }),
+        db.tx.reports[reportId].link({ author: user.id }),
+      ]);
+
+      console.log("Report created, now adding photo...");
+
+      // Then add the photo in a separate transaction
+      await db.transact([
         db.tx.$files[photoId].update({
           url: capturedImage,
           path: `reports/${reportId}/${photoId}.jpg`,
         }),
-        db.tx.reports[reportId].link({ photos: photoId, author: user.id }),
+        db.tx.reports[reportId].link({ photos: photoId }),
       ]);
+
+      console.log("Report submitted successfully:", reportId);
 
       // Success - close everything and show toast
       handleCloseAll();
@@ -180,7 +193,8 @@ function App() {
       setTimeout(() => setShowSuccessToast(false), 3000);
     } catch (error) {
       console.error("Submit error:", error);
-      setAnalysisError("Error al guardar el reporte");
+      const errorMessage = error instanceof Error ? error.message : "Error desconocido";
+      setAnalysisError(`Error al guardar el reporte: ${errorMessage}`);
       setFlowState("review");
     }
   };
