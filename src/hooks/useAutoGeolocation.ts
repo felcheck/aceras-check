@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
 interface GeolocationState {
   location: [number, number] | null;
@@ -13,47 +13,21 @@ export function useAutoGeolocation() {
     permissionStatus: null,
   });
 
-  useEffect(() => {
-    // Check if we've already requested and stored the decision
-    const storedPermission = localStorage.getItem('geolocation-permission');
-
-    if (storedPermission === 'denied') {
-      setState(prev => ({ ...prev, hasRequested: true, permissionStatus: 'denied' }));
-      return;
-    }
-
-    // If we've already granted, we can try to get the position without prompting
-    if (storedPermission === 'granted') {
-      setState(prev => ({ ...prev, hasRequested: true, permissionStatus: 'granted' }));
-      getCurrentPosition();
-      return;
-    }
-
-    // If already requesting, don't prompt again (handles double-mount in dev mode)
-    if (storedPermission === 'requesting') {
-      return;
-    }
-
-    // First time - request geolocation directly
-    // The browser will show its own permission dialog
-    // (window.confirm doesn't work well on mobile, especially iOS Safari)
-    if (!storedPermission || storedPermission === 'prompt') {
-      // Mark as requested immediately to prevent double-prompt
-      localStorage.setItem('geolocation-permission', 'requesting');
-      getCurrentPosition();
-    }
-  }, []);
-
-  const getCurrentPosition = () => {
+  // Define getCurrentPosition first so it can be used in useEffect
+  const getCurrentPosition = useCallback(() => {
     if (!navigator.geolocation) {
       console.warn('Geolocation not supported');
       return;
     }
 
+    console.log('[Geolocation] Requesting position...');
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
         const location: [number, number] = [latitude, longitude];
+
+        console.log('[Geolocation] Got position:', latitude, longitude);
 
         // Store successful permission grant
         localStorage.setItem('geolocation-permission', 'granted');
@@ -65,7 +39,7 @@ export function useAutoGeolocation() {
         });
       },
       (error) => {
-        console.warn('Geolocation error:', error);
+        console.warn('[Geolocation] Error:', error);
 
         // Store denial
         localStorage.setItem('geolocation-permission', 'denied');
@@ -101,7 +75,38 @@ export function useAutoGeolocation() {
         maximumAge: 300000, // Cache for 5 minutes
       }
     );
-  };
+  }, []);
+
+  useEffect(() => {
+    // Check if we've already requested and stored the decision
+    const storedPermission = localStorage.getItem('geolocation-permission');
+    console.log('[Geolocation] Stored permission:', storedPermission);
+
+    if (storedPermission === 'denied') {
+      setState(prev => ({ ...prev, hasRequested: true, permissionStatus: 'denied' }));
+      return;
+    }
+
+    // If we've already granted, get position immediately (no prompt needed)
+    if (storedPermission === 'granted') {
+      console.log('[Geolocation] Previously granted, requesting position...');
+      setState(prev => ({ ...prev, hasRequested: true, permissionStatus: 'granted' }));
+      getCurrentPosition();
+      return;
+    }
+
+    // If already requesting, don't prompt again (handles double-mount in dev mode)
+    if (storedPermission === 'requesting') {
+      console.log('[Geolocation] Already requesting, skipping...');
+      return;
+    }
+
+    // First time - request geolocation directly
+    // The browser will show its own permission dialog
+    console.log('[Geolocation] First time, requesting permission...');
+    localStorage.setItem('geolocation-permission', 'requesting');
+    getCurrentPosition();
+  }, [getCurrentPosition]);
 
   return state;
 }
