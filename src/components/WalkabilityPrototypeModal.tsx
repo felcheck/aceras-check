@@ -13,6 +13,7 @@ interface WalkabilityPrototypeModalProps {
   isExpanded: boolean;
   onExpand: () => void;
   onClose: () => void;
+  capturedImage?: string | null;
 }
 
 const UTILIDAD_OPTIONS = [
@@ -750,6 +751,7 @@ export default function WalkabilityDrawer({
   isExpanded,
   onExpand,
   onClose,
+  capturedImage,
 }: WalkabilityPrototypeModalProps) {
   const { state, scores, updateBucket } = useWalkabilityState();
   const [openBuckets, setOpenBuckets] = useState<Record<BucketId, boolean>>({
@@ -761,7 +763,7 @@ export default function WalkabilityDrawer({
 
   // Photo upload state
   const [photo, setPhoto] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(capturedImage || null);
   const [isCompressing, setIsCompressing] = useState(false);
   const [uploadError, setUploadError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -795,10 +797,18 @@ export default function WalkabilityDrawer({
     setOpenBuckets(prev => ({ ...prev, [bucket]: !prev[bucket] }));
   };
 
+  // Sync photoPreview with capturedImage prop
+  useEffect(() => {
+    if (capturedImage) {
+      setPhotoPreview(capturedImage);
+    }
+  }, [capturedImage]);
+
   // Photo cleanup effect
   useEffect(() => {
     return () => {
-      if (photoPreview) {
+      // Only revoke if it's an object URL (not a base64 data URL from camera)
+      if (photoPreview && photoPreview.startsWith("blob:")) {
         URL.revokeObjectURL(photoPreview);
       }
     };
