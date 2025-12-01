@@ -119,6 +119,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Log image info for debugging
+    console.log("Received image:", {
+      length: image.length,
+      first100: image.substring(0, 100),
+      last20: image.substring(image.length - 20),
+    });
+
     // Validate and normalize the data URL
     const normalizedImage = normalizeDataUrl(image);
     if (!normalizedImage) {
@@ -128,6 +135,11 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    console.log("Normalized image:", {
+      length: normalizedImage.length,
+      first100: normalizedImage.substring(0, 100),
+    });
 
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
@@ -193,8 +205,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Extract error message from OpenAI error
+    const errorMessage = error instanceof Error ? error.message : "Failed to analyze image";
+
     return NextResponse.json(
-      { error: "Failed to analyze image" },
+      { error: errorMessage },
       { status: 500 }
     );
   }
