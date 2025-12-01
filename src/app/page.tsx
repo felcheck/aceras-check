@@ -90,10 +90,34 @@ function App() {
     setAnalysisError(null);
 
     try {
+      // Compress image before sending to API (Vercel has 4.5MB limit)
+      let imageToSend = capturedImage;
+
+      // Convert base64 to blob for compression
+      const response1 = await fetch(capturedImage);
+      const blob = await response1.blob();
+
+      // Only compress if larger than 1MB
+      if (blob.size > 1024 * 1024) {
+        const file = new File([blob], "photo.jpg", { type: "image/jpeg" });
+        const compressedFile = await imageCompression(file, {
+          maxSizeMB: 1,
+          maxWidthOrHeight: 1920,
+          useWebWorker: true,
+        });
+
+        // Convert back to base64
+        const reader = new FileReader();
+        imageToSend = await new Promise((resolve) => {
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(compressedFile);
+        });
+      }
+
       const response = await fetch("/api/analyze-sidewalk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: capturedImage }),
+        body: JSON.stringify({ image: imageToSend }),
       });
 
       const data = await response.json();
