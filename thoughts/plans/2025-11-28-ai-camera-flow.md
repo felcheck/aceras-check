@@ -399,6 +399,7 @@ Features:
 | AI accuracy insufficient | Medium | Medium | User review step catches errors |
 | HTTPS requirement blocks local dev | Low | Low | Use localhost (exempt from HTTPS) |
 | Image size too large for API | Medium | Medium | Compress before sending (existing code) |
+| **Mobile image payload too large (413)** | **High** | **High** | **Compress images >1MB before API call (FIXED 2025-12-01)** |
 
 ---
 
@@ -753,3 +754,81 @@ useEffect(() => {
 - [freeCodeCamp: How to use input element to access camera on mobile](https://www.freecodecamp.org/news/how-to-use-input-element-to-access-camera-on-mobile/)
 - [AddPipe: Correct Syntax for HTML Media Capture](https://blog.addpipe.com/correct-syntax-html-media-capture/)
 - [SimiCart: How to Access Camera in a PWA](https://simicart.com/blog/pwa-camera-access/)
+
+---
+
+## 14. Bug Fix: Mobile Image 413 Payload Too Large (2025-12-01)
+
+> **Issue**: Mobile devices failed with "The string did not match the expected pattern" error
+> **Root Cause**: Mobile cameras produce high-resolution images (often 5-10MB) that exceed Vercel's 4.5MB request body limit
+> **Status**: FIXED
+
+### 14.1 Symptoms
+
+- Error message: "Error al analizar" with "The string did not match the expected pattern"
+- Works fine on desktop, fails on mobile
+- Vercel logs show HTTP 413 (Payload Too Large) before request reaches API handler
+
+### 14.2 Root Cause Analysis
+
+1. `react-webcam`'s `getScreenshot()` returns base64 at full camera resolution
+2. Mobile cameras (especially iPhone) capture at 12MP+ resolution
+3. JPEG base64 encoding adds ~33% overhead
+4. Result: 3MB photo → ~4MB base64 → exceeds Vercel's 4.5MB limit
+5. Vercel rejects request with 413 before it reaches Next.js API route
+6. The confusing error message came from OpenAI validation (never reached due to 413)
+
+### 14.3 Solution
+
+**File**: `src/app/page.tsx` - `handleQualityConfirmed()` function
+
+Added image compression using `browser-image-compression` before sending to API:
+
+```typescript
+// Compress image before sending to API (Vercel has 4.5MB limit)
+let imageToSend = capturedImage;
+
+// Convert base64 to blob for compression
+const response1 = await fetch(capturedImage);
+const blob = await response1.blob();
+
+// Only compress if larger than 1MB
+if (blob.size > 1024 * 1024) {
+  const file = new File([blob], "photo.jpg", { type: "image/jpeg" });
+  const compressedFile = await imageCompression(file, {
+    maxSizeMB: 1,
+    maxWidthOrHeight: 1920,
+    useWebWorker: true,
+  });
+
+  // Convert back to base64
+  const reader = new FileReader();
+  imageToSend = await new Promise((resolve) => {
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.readAsDataURL(compressedFile);
+  });
+}
+```
+
+### 14.4 Additional Hardening
+
+**File**: `src/app/api/analyze-sidewalk/route.ts`
+
+Added `normalizeDataUrl()` function to:
+- Remove whitespace/newlines from base64 data URLs
+- Handle `image/jpg` vs `image/jpeg` MIME type differences
+- Provide clearer error messages for invalid formats
+
+### 14.5 Verification
+
+- [x] Mobile (iOS Safari): Takes photo → compresses → AI analysis succeeds
+- [x] Mobile (Android Chrome): Same flow works
+- [x] Desktop: Still works (images typically smaller, may skip compression)
+- [x] Build passes: `npm run build` succeeds
+
+### 14.6 Lessons Learned
+
+1. **Always test on real mobile devices** - Desktop camera resolution is typically lower
+2. **Vercel's 4.5MB limit is request body**, not just image size (base64 overhead matters)
+3. **413 errors happen before your code runs** - Can't catch them in try/catch
+4. **Compress images client-side** before sending to serverless functions
