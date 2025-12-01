@@ -81,6 +81,32 @@ Respond with a valid JSON object matching this exact schema:
   "retakeRecommended": boolean
 }`;
 
+// Validate and normalize base64 data URL for OpenAI compatibility
+function normalizeDataUrl(dataUrl: string): string | null {
+  // Expected format: data:image/[format];base64,[base64data]
+  const dataUrlRegex = /^data:image\/(jpeg|jpg|png|gif|webp);base64,([A-Za-z0-9+/]+=*)$/;
+
+  // Clean up the data URL - remove any whitespace/newlines that mobile browsers might add
+  const cleaned = dataUrl.replace(/\s/g, '');
+
+  const match = cleaned.match(dataUrlRegex);
+  if (match) {
+    // Return the cleaned version
+    return cleaned;
+  }
+
+  // Try to fix common issues
+  // Some browsers use 'jpg' instead of 'jpeg'
+  if (cleaned.startsWith('data:image/jpg;base64,')) {
+    const fixed = cleaned.replace('data:image/jpg;base64,', 'data:image/jpeg;base64,');
+    if (dataUrlRegex.test(fixed)) {
+      return fixed;
+    }
+  }
+
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -89,6 +115,16 @@ export async function POST(request: NextRequest) {
     if (!image) {
       return NextResponse.json(
         { error: "No image provided" },
+        { status: 400 }
+      );
+    }
+
+    // Validate and normalize the data URL
+    const normalizedImage = normalizeDataUrl(image);
+    if (!normalizedImage) {
+      console.error("Invalid image data URL format. First 100 chars:", image.substring(0, 100));
+      return NextResponse.json(
+        { error: "Invalid image format. Please try taking the photo again." },
         { status: 400 }
       );
     }
@@ -118,7 +154,7 @@ export async function POST(request: NextRequest) {
             {
               type: "image_url",
               image_url: {
-                url: image, // base64 data URL
+                url: normalizedImage,
                 detail: "high",
               },
             },
